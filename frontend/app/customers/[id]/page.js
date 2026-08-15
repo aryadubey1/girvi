@@ -22,7 +22,7 @@ export default function CustomerDetail() {
   const [photoError, setPhotoError] = useState('');
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/customers/${id}`, { credentials: 'include' })
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, { credentials: 'include' })
       .then(res => {
         if (!res.ok) throw new Error('Failed to load customer');
         return res.json();
@@ -47,7 +47,7 @@ export default function CustomerDetail() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:3001/api/customers/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -71,7 +71,7 @@ export default function CustomerDetail() {
       const formData = new FormData();
       Array.from(files).forEach(file => formData.append('photos', file));
 
-      const res = await fetch(`http://localhost:3001/api/loans/${loanId}/photos`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/loans/${loanId}/photos`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -94,7 +94,7 @@ export default function CustomerDetail() {
     setPhotoError('');
     try {
       const res = await fetch(
-        `http://localhost:3001/api/loans/${loanId}/photos/${photoId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/loans/${loanId}/photos/${photoId}`,
         { method: 'DELETE', credentials: 'include' }
       );
       if (!res.ok) throw new Error('Failed to delete photo');
@@ -164,7 +164,7 @@ export default function CustomerDetail() {
           <div className="flex items-center gap-4">
             {customer.photo_path ? (
               <img
-                src={`http://localhost:3001/${customer.photo_path.replace(/\\/g, '/')}`}
+                src={`${process.env.NEXT_PUBLIC_API_URL}/${customer.photo_path.replace(/\\/g, '/')}`}
                 alt={customer.name}
                 className="w-16 h-16 rounded-full object-cover border border-[#E7E5E4]"
               />
@@ -303,7 +303,7 @@ export default function CustomerDetail() {
                     {loan.photos.map(p => (
                       <div key={p.id} className="relative w-16 h-16">
                         <img
-                          src={`http://localhost:3001/${p.photo_path.replace(/\\/g, '/')}`}
+                          src={`${process.env.NEXT_PUBLIC_API_URL}/${p.photo_path.replace(/\\/g, '/')}`}
                           alt="Jewellery"
                           className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4]"
                         />

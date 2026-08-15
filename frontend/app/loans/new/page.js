@@ -22,7 +22,7 @@ export default function NewLoan() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/customers', { credentials: 'include' })
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setCustomers(data);
@@ -46,7 +46,7 @@ export default function NewLoan() {
       let customerId = selectedCustomer?.id;
 
       if (!customerId) {
-        const customerRes = await fetch('http://localhost:3001/api/customers', {
+        const customerRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers`, {
           method: 'POST',
           credentials: 'include',
           body: (() => {
@@ -68,7 +68,7 @@ export default function NewLoan() {
       loanFormData.append('notes', notes);
       photos.forEach(file => loanFormData.append('photos', file));
 
-      const loanRes = await fetch('http://localhost:3001/api/loans', {
+      const loanRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/loans`, {
         method: 'POST',
         credentials: 'include',
         body: loanFormData,

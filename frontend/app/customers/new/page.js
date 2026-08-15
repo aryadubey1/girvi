@@ -30,7 +30,7 @@ export default function NewCustomer() {
     if (photo) formData.append('photo', photo);
 
     try {
-      const res = await fetch('http://localhost:3001/api/customers', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers`, {
         method: 'POST',
         credentials: 'include',
         body: formData,

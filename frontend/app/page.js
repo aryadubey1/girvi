@@ -13,7 +13,7 @@ export default function Home() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/check-auth', { credentials: 'include' })
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/check-auth`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setLoggedIn(data.authenticated);
@@ -23,13 +23,13 @@ export default function Home() {
 
   useEffect(() => {
     if (loggedIn) {
-      fetch('http://localhost:3001/api/customers', { credentials: 'include' })
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers`, { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) setCustomers(data);
         });
 
-      fetch('http://localhost:3001/api/dashboard', { credentials: 'include' })
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard`, { credentials: 'include' })
         .then(res => res.json())
         .then(data => setDashboard(data));
     }
@@ -38,7 +38,7 @@ export default function Home() {
   async function handleLogin(e) {
     e.preventDefault();
     setLoginError('');
-    const res = await fetch('http://localhost:3001/api/login', {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
