@@ -115,7 +115,7 @@ export default function CustomerDetail() {
   async function handleDeleteLoan(loanId) {
     setLoanDeleteError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/loans/${loanId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/loans/${loanId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -136,7 +136,7 @@ export default function CustomerDetail() {
   async function handleDelete() {
     setDeleteError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/customers/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
