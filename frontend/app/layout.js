@@ -23,7 +23,6 @@ export default function RootLayout({ children }) {
                   Om Shivam Jewellers
                 </p>
                 <p className="text-sm font-semibold text-[#B45309] leading-tight" style={{ fontFamily: 'Georgia, serif' }}>
-                  गिरवी
                 </p>
               </div>
             </Link>
