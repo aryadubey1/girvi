@@ -8,6 +8,9 @@ export default function NewCustomer() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [aadhar, setAadhar] = useState('');
+  const [pan, setPan] = useState('');
+  const [email, setEmail] = useState('');
   const [photo, setPhoto] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -20,6 +23,18 @@ export default function NewCustomer() {
       setError('Phone number must be exactly 10 digits');
       return;
     }
+    if (aadhar && !/^\d{12}$/.test(aadhar)) {
+      setError('Aadhar number must be exactly 12 digits');
+      return;
+    }
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+      setError('PAN number must be in the format ABCDE1234F');
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Email address is not valid');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -27,6 +42,9 @@ export default function NewCustomer() {
     formData.append('name', name);
     formData.append('phone', phone);
     formData.append('address', address);
+    formData.append('aadhar_number', aadhar);
+    formData.append('pan_number', pan);
+    formData.append('email', email);
     if (photo) formData.append('photo', photo);
 
     try {
@@ -79,6 +97,36 @@ export default function NewCustomer() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             rows={2}
+            className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-[#57534E] block mb-1">Aadhar number (optional)</label>
+          <input
+            type="text"
+            value={aadhar}
+            onChange={(e) => setAadhar(e.target.value.replace(/\D/g, '').slice(0, 12))}
+            className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-[#57534E] block mb-1">PAN number (optional)</label>
+          <input
+            type="text"
+            value={pan}
+            onChange={(e) => setPan(e.target.value.toUpperCase().slice(0, 10))}
+            className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-[#57534E] block mb-1">Email (optional)</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
           />
         </div>

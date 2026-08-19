@@ -1,5 +1,6 @@
 const express = require('express');
 const calculateAccruedInterest = require('./interestCalculator');
+const buildLoanLedger = require('./buildLoanLedger');
 const router = express.Router();
 const pool = require('./db');
 const multer = require('multer');
@@ -12,21 +13,39 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+function validateIdentityFields({ aadhar_number, pan_number, email }) {
+  if (aadhar_number && !/^\d{12}$/.test(aadhar_number)) {
+    return 'Aadhar number must be exactly 12 digits';
+  }
+  if (pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan_number)) {
+    return 'PAN number must be in the format ABCDE1234F';
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return 'Email address is not valid';
+  }
+  return null;
+}
+
 router.post('/customers', upload.single('photo'), async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, aadhar_number, pan_number, email } = req.body;
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: 'Phone number must be exactly 10 digits' });
     }
 
+    const identityError = validateIdentityFields({ aadhar_number, pan_number, email });
+    if (identityError) {
+      return res.status(400).json({ error: identityError });
+    }
+
     const photoPath = req.file ? req.file.path : null;
 
     const result = await pool.query(
-      `INSERT INTO customers (name, phone, address, photo_path)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO customers (name, phone, address, photo_path, aadhar_number, pan_number, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [name, phone, address, photoPath]
+      [name, phone, address, photoPath, aadhar_number || null, pan_number || null, email || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -95,7 +114,7 @@ router.get('/customers/:id', async (req, res) => {
         lastPaymentDate
       );
 
-      loans.push({
+      const loanWithComputed = {
         ...loan,
         days_since_last_payment: daysSincePayment,
         interest_accrued_today: interestAccrued,
@@ -105,8 +124,17 @@ router.get('/customers/:id', async (req, res) => {
             interestAccrued) *
             100
         ) / 100,
+      };
+
+      // buildLoanLedger sorts payments internally, so passing the DESC-ordered
+      // array straight through (same one used for the payment history list) is fine.
+      const ledger = buildLoanLedger(loanWithComputed, payments);
+
+      loans.push({
+        ...loanWithComputed,
         payments,
         photos,
+        ledger,
       });
     }
 
@@ -119,15 +147,22 @@ router.get('/customers/:id', async (req, res) => {
 
 router.put('/customers/:id', async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, aadhar_number, pan_number, email } = req.body;
 
     if (phone && !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ error: 'Phone number must be exactly 10 digits' });
     }
 
+    const identityError = validateIdentityFields({ aadhar_number, pan_number, email });
+    if (identityError) {
+      return res.status(400).json({ error: identityError });
+    }
+
     const result = await pool.query(
-      `UPDATE customers SET name = $1, phone = $2, address = $3 WHERE id = $4 RETURNING *`,
-      [name, phone, address, req.params.id]
+      `UPDATE customers
+       SET name = $1, phone = $2, address = $3, aadhar_number = $4, pan_number = $5, email = $6
+       WHERE id = $7 RETURNING *`,
+      [name, phone, address, aadhar_number || null, pan_number || null, email || null, req.params.id]
     );
 
     if (result.rows.length === 0) {

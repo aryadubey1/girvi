@@ -7,6 +7,7 @@ const loanRoutes = require('./loanRoutes');
 const paymentRoutes = require('./paymentRoutes');
 const authRoutes = require('./authRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
+const pdfRoutes = require('./pdfRoutes');
 const requireAuth = require('./requireAuth');
 
 const app = express();
@@ -36,6 +37,7 @@ app.use('/api', requireAuth, customerRoutes);
 app.use('/api', requireAuth, loanRoutes);
 app.use('/api', requireAuth, paymentRoutes);
 app.use('/api', requireAuth, dashboardRoutes);
+app.use('/api', requireAuth, pdfRoutes);
 
 app.get('/', (req, res) => {
   res.send('Girvi app backend is running');
