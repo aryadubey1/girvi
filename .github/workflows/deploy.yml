@@ -20,8 +20,34 @@ jobs:
             cd /var/www/girvi
             git pull origin main
 
+            # System deps for Puppeteer/Chromium (PDF generation).
+            # Safe to re-run every deploy — apt-get skips anything already installed.
+            sudo apt-get update
+            sudo apt-get install -y \
+              unzip \
+              libnss3 \
+              libatk-bridge2.0-0 \
+              libatk1.0-0 \
+              libcups2 \
+              libdrm2 \
+              libxkbcommon0 \
+              libxcomposite1 \
+              libxdamage1 \
+              libxfixes3 \
+              libxrandr2 \
+              libgbm1 \
+              libasound2t64 \
+              libpango-1.0-0 \
+              libcairo2 \
+              libgtk-3-0
+
             cd backend
             npm install --production
+
+            # Explicitly ensure Chromium is installed, in case postinstall
+            # scripts are blocked by npm's allow-scripts config on this VPS.
+            npx puppeteer browsers install chrome
+
             pm2 restart girvi-backend
 
             cd ../frontend
