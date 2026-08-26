@@ -15,8 +15,17 @@ export default function NewLoan() {
   const [loanDate, setLoanDate] = useState(
     new Date().toLocaleDateString('en-CA')
   );
+  const [dueDate, setDueDate] = useState('');
   const [photos, setPhotos] = useState([]);
   const [notes, setNotes] = useState('');
+
+  const [goldWeight, setGoldWeight] = useState('');
+  const [goldRate, setGoldRate] = useState('');
+  const [silverWeight, setSilverWeight] = useState('');
+  const [silverRate, setSilverRate] = useState('');
+
+  const goldValue = (goldWeight && goldRate) ? (parseFloat(goldWeight) * parseFloat(goldRate)).toFixed(2) : '';
+  const silverValue = (silverWeight && silverRate) ? (parseFloat(silverWeight) * parseFloat(silverRate)).toFixed(2) : '';
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -65,7 +74,19 @@ export default function NewLoan() {
       loanFormData.append('original_principal', principal);
       loanFormData.append('interest_rate', rate);
       loanFormData.append('loan_date', loanDate);
+      if (!dueDate) {
+        setError('Due date is required');
+        setSubmitting(false);
+        return;
+      }
+      loanFormData.append('due_date', dueDate);
       loanFormData.append('notes', notes);
+      if (goldWeight) loanFormData.append('gold_weight', goldWeight);
+      if (goldRate) loanFormData.append('gold_rate', goldRate);
+      if (goldValue) loanFormData.append('gold_value', goldValue);
+      if (silverWeight) loanFormData.append('silver_weight', silverWeight);
+      if (silverRate) loanFormData.append('silver_rate', silverRate);
+      if (silverValue) loanFormData.append('silver_value', silverValue);
       photos.forEach(file => loanFormData.append('photos', file));
 
       const loanRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/loans`, {
@@ -113,7 +134,7 @@ export default function NewLoan() {
             onClick={() => setNewCustomerName(search)}
             className="w-full text-left bg-[#FDF6E7] border border-[#E7E5E4] rounded-lg px-4 py-2 text-[#A16207] font-medium hover:border-[#D6D3D1]"
           >
-            + Create new customer "{search}"
+            + Create new customer &quot;{search}&quot;
           </button>
         )}
       </div>
@@ -172,6 +193,85 @@ export default function NewLoan() {
             required
             className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
           />
+        </div>
+
+        <div>
+          <label className="text-sm text-[#57534E] block mb-1">Due date</label>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            required
+            className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
+          />
+        </div>
+
+        <div className="border border-[#E7E5E4] rounded-lg p-4 bg-[#FAF9F6]">
+          <h3 className="text-sm font-semibold text-[#292524] mb-3">Gold Details (Optional)</h3>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-xs text-[#57534E] block mb-1">Weight (grams)</label>
+              <input
+                type="number"
+                value={goldWeight}
+                onChange={(e) => setGoldWeight(e.target.value)}
+                min="0"
+                step="0.01"
+                className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#57534E] block mb-1">Rate (per gram)</label>
+              <input
+                type="number"
+                value={goldRate}
+                onChange={(e) => setGoldRate(e.target.value)}
+                min="0"
+                step="0.01"
+                className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#57534E] block mb-1">Calculated Value</label>
+            <div className="w-full border border-[#E7E5E4] bg-[#F5F5F4] text-[#78716C] px-3 py-2 rounded-lg text-sm font-medium h-9 flex items-center">
+              {goldValue ? `₹${goldValue}` : '—'}
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-[#E7E5E4] rounded-lg p-4 bg-[#FAF9F6]">
+          <h3 className="text-sm font-semibold text-[#292524] mb-3">Silver Details (Optional)</h3>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-xs text-[#57534E] block mb-1">Weight (grams)</label>
+              <input
+                type="number"
+                value={silverWeight}
+                onChange={(e) => setSilverWeight(e.target.value)}
+                min="0"
+                step="0.01"
+                className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#57534E] block mb-1">Rate (per gram)</label>
+              <input
+                type="number"
+                value={silverRate}
+                onChange={(e) => setSilverRate(e.target.value)}
+                min="0"
+                step="0.01"
+                className="w-full border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#57534E] block mb-1">Calculated Value</label>
+            <div className="w-full border border-[#E7E5E4] bg-[#F5F5F4] text-[#78716C] px-3 py-2 rounded-lg text-sm font-medium h-9 flex items-center">
+              {silverValue ? `₹${silverValue}` : '—'}
+            </div>
+          </div>
         </div>
 
         <div>

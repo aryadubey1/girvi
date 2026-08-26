@@ -6,7 +6,7 @@ router.get('/dashboard', async (req, res) => {
   try {
     const totalOutResult = await pool.query(
       `SELECT COALESCE(SUM(outstanding_principal) + SUM(interest_shortfall), 0) as total_out
-       FROM loans`
+       FROM loans WHERE is_deleted = false`
     );
 
     const collectedThisMonthResult = await pool.query(
@@ -19,7 +19,7 @@ router.get('/dashboard', async (req, res) => {
       `SELECT COUNT(DISTINCT c.id) as count
        FROM customers c
        JOIN loans l ON l.customer_id = c.id
-       WHERE (l.outstanding_principal + l.interest_shortfall) > 0`
+       WHERE (l.outstanding_principal + l.interest_shortfall) > 0 AND l.is_deleted = false`
     );
 
     const topBorrowersResult = await pool.query(
@@ -27,7 +27,7 @@ router.get('/dashboard', async (req, res) => {
         SUM(l.outstanding_principal) + SUM(l.interest_shortfall) as total_owed
        FROM customers c
        JOIN loans l ON l.customer_id = c.id
-       WHERE (l.outstanding_principal + l.interest_shortfall) > 0
+       WHERE (l.outstanding_principal + l.interest_shortfall) > 0 AND l.is_deleted = false
        GROUP BY c.id, c.name
        ORDER BY total_owed DESC
        LIMIT 5`

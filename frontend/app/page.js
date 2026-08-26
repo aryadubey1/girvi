@@ -197,7 +197,7 @@ export default function Home() {
           ))}
 
           {search && filteredCustomers.length === 0 && (
-            <p className="text-sm text-[#78716C]">No customers match "{search}".</p>
+            <p className="text-sm text-[#78716C]">No customers match &quot;{search}&quot;.</p>
           )}
         </div>
 

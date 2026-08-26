@@ -27,9 +27,17 @@ export default function CustomerDetail() {
   const [newLoanPrincipal, setNewLoanPrincipal] = useState('');
   const [newLoanRate, setNewLoanRate] = useState('');
   const [newLoanDate, setNewLoanDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [newLoanDueDate, setNewLoanDueDate] = useState('');
   const [newLoanNotes, setNewLoanNotes] = useState('');
   const [newLoanPhotos, setNewLoanPhotos] = useState(null);
+  const [newLoanGoldWeight, setNewLoanGoldWeight] = useState('');
+  const [newLoanGoldRate, setNewLoanGoldRate] = useState('');
+  const [newLoanSilverWeight, setNewLoanSilverWeight] = useState('');
+  const [newLoanSilverRate, setNewLoanSilverRate] = useState('');
   const [newLoanError, setNewLoanError] = useState('');
+
+  const newLoanGoldValue = (newLoanGoldWeight && newLoanGoldRate) ? (parseFloat(newLoanGoldWeight) * parseFloat(newLoanGoldRate)).toFixed(2) : '';
+  const newLoanSilverValue = (newLoanSilverWeight && newLoanSilverRate) ? (parseFloat(newLoanSilverWeight) * parseFloat(newLoanSilverRate)).toFixed(2) : '';
   const [newLoanSubmitting, setNewLoanSubmitting] = useState(false);
   const [payingLoanId, setPayingLoanId] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -163,9 +171,12 @@ export default function CustomerDetail() {
       }
       setCustomer(prev => ({
         ...prev,
-        loans: prev.loans.filter(l => l.id !== loanId),
+        loans: prev.loans.map(l => l.id === loanId ? { ...l, is_deleted: true } : l),
       }));
       setConfirmingLoanDelete(null);
+      if (expandedLoanId === loanId) {
+        setExpandedLoanId(null);
+      }
     } catch (err) {
       setLoanDeleteError(err.message);
     }
@@ -203,6 +214,10 @@ export default function CustomerDetail() {
       setNewLoanError('Loan date is required');
       return;
     }
+    if (!newLoanDueDate) {
+      setNewLoanError('Due date is required');
+      return;
+    }
     setNewLoanSubmitting(true);
     try {
       const formData = new FormData();
@@ -210,7 +225,14 @@ export default function CustomerDetail() {
       formData.append('original_principal', newLoanPrincipal);
       formData.append('interest_rate', newLoanRate);
       formData.append('loan_date', newLoanDate);
+      if (newLoanDueDate) formData.append('due_date', newLoanDueDate);
       formData.append('notes', newLoanNotes);
+      if (newLoanGoldWeight) formData.append('gold_weight', newLoanGoldWeight);
+      if (newLoanGoldRate) formData.append('gold_rate', newLoanGoldRate);
+      if (newLoanGoldValue) formData.append('gold_value', newLoanGoldValue);
+      if (newLoanSilverWeight) formData.append('silver_weight', newLoanSilverWeight);
+      if (newLoanSilverRate) formData.append('silver_rate', newLoanSilverRate);
+      if (newLoanSilverValue) formData.append('silver_value', newLoanSilverValue);
       if (newLoanPhotos) {
         Array.from(newLoanPhotos).forEach(file => formData.append('photos', file));
       }
@@ -236,6 +258,7 @@ export default function CustomerDetail() {
             total_owed: parseFloat(newLoan.outstanding_principal),
             payments: [],
             photos: [],
+            ledger: [],
           },
           ...prev.loans,
         ],
@@ -244,8 +267,13 @@ export default function CustomerDetail() {
       setNewLoanPrincipal('');
       setNewLoanRate('');
       setNewLoanDate(new Date().toLocaleDateString('en-CA'));
+      setNewLoanDueDate('');
       setNewLoanNotes('');
       setNewLoanPhotos(null);
+      setNewLoanGoldWeight('');
+      setNewLoanGoldRate('');
+      setNewLoanSilverWeight('');
+      setNewLoanSilverRate('');
     } catch (err) {
       setNewLoanError(err.message);
     } finally {
@@ -495,6 +523,15 @@ export default function CustomerDetail() {
                   type="date"
                   value={newLoanDate}
                   onChange={(e) => setNewLoanDate(e.target.value)}
+                  required
+                  className="border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-sm"
+                />
+                <label className="text-xs text-[#57534E] mt-1 -mb-1">Due date</label>
+                <input
+                  type="date"
+                  value={newLoanDueDate}
+                  onChange={(e) => setNewLoanDueDate(e.target.value)}
+                  required
                   className="border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-sm"
                 />
                 <textarea
@@ -504,6 +541,28 @@ export default function CustomerDetail() {
                   rows={2}
                   className="border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-sm"
                 />
+                
+                <div className="border border-[#E7E5E4] rounded p-2 bg-[#F5F5F4] mt-1">
+                  <p className="text-xs font-semibold text-[#57534E] mb-2">Gold Details (Optional)</p>
+                  <div className="flex gap-2">
+                    <input type="number" placeholder="Weight (g)" value={newLoanGoldWeight} onChange={e => setNewLoanGoldWeight(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Rate/g" value={newLoanGoldRate} onChange={e => setNewLoanGoldRate(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <div className="w-1/3 border border-[#E7E5E4] bg-white text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
+                      {newLoanGoldValue ? `₹${newLoanGoldValue}` : 'Value'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-[#E7E5E4] rounded p-2 bg-[#F5F5F4] mt-1 mb-1">
+                  <p className="text-xs font-semibold text-[#57534E] mb-2">Silver Details (Optional)</p>
+                  <div className="flex gap-2">
+                    <input type="number" placeholder="Weight (g)" value={newLoanSilverWeight} onChange={e => setNewLoanSilverWeight(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Rate/g" value={newLoanSilverRate} onChange={e => setNewLoanSilverRate(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <div className="w-1/3 border border-[#E7E5E4] bg-white text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
+                      {newLoanSilverValue ? `₹${newLoanSilverValue}` : 'Value'}
+                    </div>
+                  </div>
+                </div>
                 <label className="text-sm text-[#78716C]">
                   Photos (optional)
                   <input
@@ -541,15 +600,43 @@ export default function CustomerDetail() {
 
         {customer.loans.map(loan => {
           const isExpanded = expandedLoanId === loan.id;
+
+          let statusClass = 'bg-white border-[#E7E5E4]';
+          let statusBadge = null;
+          const isClosed = loan.total_owed <= 0;
+          
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          const loanDueDate = loan.due_date ? new Date(loan.due_date) : null;
+          if (loanDueDate) loanDueDate.setHours(0,0,0,0);
+          
+          const isOverdue = loanDueDate && loanDueDate < today;
+          
+          if (loan.is_deleted) {
+            statusClass = 'bg-[#F5F5F4] border-[#E7E5E4] opacity-75';
+            statusBadge = <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">Deleted</span>;
+          } else if (isClosed) {
+            statusClass = 'bg-[#F5F5F4] border-[#E7E5E4] opacity-75';
+            statusBadge = <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">Closed</span>;
+          } else if (isOverdue) {
+            statusClass = 'bg-[#FEF2F2] border-[#FECACA]';
+            statusBadge = <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Overdue</span>;
+          } else {
+            statusBadge = <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>;
+          }
+
           return (
             <div
               key={loan.id}
-              className="bg-white border border-[#E7E5E4] rounded-xl p-5 mb-4"
+              className={`border rounded-xl p-5 mb-4 ${statusClass}`}
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm text-[#78716C]">Amount due today</p>
-                  <p className="text-3xl font-semibold text-[#A16207] mt-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm text-[#78716C]">Amount due today</p>
+                    {statusBadge}
+                  </div>
+                  <p className="text-3xl font-semibold text-[#A16207]">
                     ₹{loan.total_owed}
                   </p>
                 </div>
@@ -566,6 +653,32 @@ export default function CustomerDetail() {
                   <p>Interest rate: {loan.interest_rate}% per month</p>
                   {loan.notes && <p>Notes: {loan.notes}</p>}
 
+                  <div className="mt-3 p-3 bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg">
+                    <p className="font-semibold text-[#292524] mb-1">Gold Details</p>
+                    {(loan.gold_weight || loan.gold_rate) ? (
+                      <div className="flex gap-4 text-xs">
+                        <p>Weight: {loan.gold_weight}g</p>
+                        <p>Rate: ₹{loan.gold_rate}/g</p>
+                        <p>Value: ₹{loan.gold_value}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#78716C]">No gold pledged.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-3 p-3 bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg">
+                    <p className="font-semibold text-[#292524] mb-1">Silver Details</p>
+                    {(loan.silver_weight || loan.silver_rate) ? (
+                      <div className="flex gap-4 text-xs">
+                        <p>Weight: {loan.silver_weight}g</p>
+                        <p>Rate: ₹{loan.silver_rate}/g</p>
+                        <p>Value: ₹{loan.silver_value}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#78716C]">No silver pledged.</p>
+                    )}
+                  </div>
+
                   <div className="overflow-x-auto mt-3 border border-[#E7E5E4] rounded-lg">
                     <table className="min-w-full text-sm">
                       <thead>
@@ -578,7 +691,7 @@ export default function CustomerDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {loan.ledger.map((row, i) => (
+                        {loan.ledger?.map((row, i) => (
                           <tr
                             key={i}
                             className={
@@ -601,7 +714,7 @@ export default function CustomerDetail() {
                   </div>
 
                   <div className="flex gap-2 flex-wrap mt-2 mb-1">
-                    {loan.photos.map(p => (
+                    {loan.photos?.map(p => (
                       <div key={p.id} className="relative w-16 h-16">
                         <img
                           src={`${process.env.NEXT_PUBLIC_API_URL}/${p.photo_path.replace(/\\/g, '/')}`}
@@ -633,20 +746,21 @@ export default function CustomerDetail() {
                   {loan.payments.length === 0 && (
                     <p className="text-[#78716C]">No payments yet.</p>
                   )}
-                  {loan.payments.map(p => (
+                  {loan.payments?.map(p => (
                     <p key={p.id} className="text-[#57534E]">
                       {p.payment_date}: ₹{p.amount_paid} paid
                     </p>
                   ))}
 
-                  {payingLoanId !== loan.id ? (
+                  {!loan.is_deleted && payingLoanId !== loan.id && (
                     <button
                       onClick={() => { setPayingLoanId(loan.id); setPaymentError(''); }}
                       className="bg-[#A16207] text-white text-xs px-3 py-1.5 rounded mt-2"
                     >
                       Record Payment
                     </button>
-                  ) : (
+                  )}
+                  {!loan.is_deleted && payingLoanId === loan.id && (
                     <div className="mt-3 bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg p-3">
                       <div className="flex flex-col gap-2">
                         <input
@@ -682,14 +796,16 @@ export default function CustomerDetail() {
                     </div>
                   )}
 
-                  <button
-                    onClick={() => setConfirmingLoanDelete(loan.id)}
-                    className="text-red-700 text-xs hover:underline mt-2 block"
-                  >
-                    Delete this loan
-                  </button>
+                  {!loan.is_deleted && (
+                    <button
+                      onClick={() => setConfirmingLoanDelete(loan.id)}
+                      className="text-red-700 text-xs hover:underline mt-2 block"
+                    >
+                      Delete this loan
+                    </button>
+                  )}
 
-                  {confirmingLoanDelete === loan.id && (
+                  {!loan.is_deleted && confirmingLoanDelete === loan.id && (
                     <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3">
                       <p className="text-red-800 mb-2">
                         Delete this loan and its payment history? This cannot be undone.

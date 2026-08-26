@@ -62,7 +62,7 @@ router.get('/customers', async (req, res) => {
       `SELECT c.*,
         COALESCE(SUM(l.outstanding_principal) + SUM(l.interest_shortfall), 0) as current_balance
        FROM customers c
-       LEFT JOIN loans l ON l.customer_id = c.id
+       LEFT JOIN loans l ON l.customer_id = c.id AND l.is_deleted = false
        GROUP BY c.id
        ORDER BY current_balance DESC`
     );
@@ -87,7 +87,6 @@ router.get('/customers/:id', async (req, res) => {
     const loansResult = await pool.query(
       `SELECT * FROM loans
        WHERE customer_id = $1
-         AND (outstanding_principal + interest_shortfall) > 0
        ORDER BY created_at DESC`,
       [req.params.id]
     );

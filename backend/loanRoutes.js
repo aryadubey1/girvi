@@ -14,15 +14,31 @@ const upload = multer({ storage });
 router.post('/loans', upload.array('photos', 10), async (req, res) => {
   const client = await pool.connect();
   try {
-    const { customer_id, original_principal, interest_rate, loan_date, notes } = req.body;
+    const {
+      customer_id, original_principal, interest_rate, loan_date, due_date, notes,
+      gold_weight, gold_rate, gold_value,
+      silver_weight, silver_rate, silver_value
+    } = req.body;
+
+    if (!due_date) {
+      return res.status(400).json({ error: 'due_date is required' });
+    }
 
     await client.query('BEGIN');
 
     const loanResult = await client.query(
-      `INSERT INTO loans (customer_id, original_principal, outstanding_principal, interest_rate, loan_date, notes)
-       VALUES ($1, $2, $2, $3, $4, $5)
+      `INSERT INTO loans (
+         customer_id, original_principal, outstanding_principal, interest_rate, loan_date, due_date, notes,
+         gold_weight, gold_rate, gold_value,
+         silver_weight, silver_rate, silver_value
+       )
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [customer_id, original_principal, interest_rate, loan_date, notes || null]
+      [
+        customer_id, original_principal, interest_rate, loan_date, due_date || null, notes || null,
+        gold_weight || null, gold_rate || null, gold_value || null,
+        silver_weight || null, silver_rate || null, silver_value || null
+      ]
     );
 
     const loan = loanResult.rows[0];
@@ -68,30 +84,20 @@ router.put('/loans/:id', async (req, res) => {
 });
 
 router.delete('/loans/:id', async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    await client.query(`DELETE FROM payments WHERE loan_id = $1`, [req.params.id]);
-    await client.query(`DELETE FROM loan_photos WHERE loan_id = $1`, [req.params.id]);
-    const result = await client.query(
-      `DELETE FROM loans WHERE id = $1 RETURNING *`,
+    const result = await pool.query(
+      `UPDATE loans SET is_deleted = true WHERE id = $1 RETURNING *`,
       [req.params.id]
     );
 
     if (result.rows.length === 0) {
-      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Loan not found' });
     }
 
-    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Failed to delete loan' });
-  } finally {
-    client.release();
   }
 });
 
