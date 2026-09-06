@@ -31,15 +31,21 @@ export default function CustomerDetail() {
   const [newLoanNotes, setNewLoanNotes] = useState('');
   const [newLoanPhotos, setNewLoanPhotos] = useState(null);
   const [newLoanGoldWeight, setNewLoanGoldWeight] = useState('');
+  const [newLoanGoldPurity, setNewLoanGoldPurity] = useState('');
   const [newLoanGoldRate, setNewLoanGoldRate] = useState('');
   const [newLoanSilverWeight, setNewLoanSilverWeight] = useState('');
+  const [newLoanSilverPurity, setNewLoanSilverPurity] = useState('');
   const [newLoanSilverRate, setNewLoanSilverRate] = useState('');
   const [newLoanError, setNewLoanError] = useState('');
 
-  const newLoanGoldValue = (newLoanGoldWeight && newLoanGoldRate) ? (parseFloat(newLoanGoldWeight) * parseFloat(newLoanGoldRate)).toFixed(2) : '';
-  const newLoanSilverValue = (newLoanSilverWeight && newLoanSilverRate) ? (parseFloat(newLoanSilverWeight) * parseFloat(newLoanSilverRate)).toFixed(2) : '';
+  const newLoanGoldValue = (newLoanGoldWeight && newLoanGoldRate && newLoanGoldPurity) ? (parseFloat(newLoanGoldWeight) * (parseFloat(newLoanGoldPurity) / 100) * parseFloat(newLoanGoldRate)).toFixed(2) : '';
+  const newLoanSilverValue = (newLoanSilverWeight && newLoanSilverRate && newLoanSilverPurity) ? (parseFloat(newLoanSilverWeight) * (parseFloat(newLoanSilverPurity) / 100) * parseFloat(newLoanSilverRate)).toFixed(2) : '';
   const [newLoanSubmitting, setNewLoanSubmitting] = useState(false);
   const [payingLoanId, setPayingLoanId] = useState(null);
+
+  const [lightboxPhoto, setLightboxPhoto] = useState(null);
+  const [confirmingNewPhotoDeleteIndex, setConfirmingNewPhotoDeleteIndex] = useState(null);
+  const [confirmingExistingPhotoDeleteId, setConfirmingExistingPhotoDeleteId] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [paymentError, setPaymentError] = useState('');
@@ -218,6 +224,14 @@ export default function CustomerDetail() {
       setNewLoanError('Due date is required');
       return;
     }
+    if ((newLoanGoldWeight || newLoanGoldRate || newLoanGoldValue) && !newLoanGoldPurity) {
+      setNewLoanError('Gold purity % is required');
+      return;
+    }
+    if ((newLoanSilverWeight || newLoanSilverRate || newLoanSilverValue) && !newLoanSilverPurity) {
+      setNewLoanError('Silver purity % is required');
+      return;
+    }
     setNewLoanSubmitting(true);
     try {
       const formData = new FormData();
@@ -228,9 +242,11 @@ export default function CustomerDetail() {
       if (newLoanDueDate) formData.append('due_date', newLoanDueDate);
       formData.append('notes', newLoanNotes);
       if (newLoanGoldWeight) formData.append('gold_weight', newLoanGoldWeight);
+      if (newLoanGoldPurity) formData.append('gold_purity', newLoanGoldPurity);
       if (newLoanGoldRate) formData.append('gold_rate', newLoanGoldRate);
       if (newLoanGoldValue) formData.append('gold_value', newLoanGoldValue);
       if (newLoanSilverWeight) formData.append('silver_weight', newLoanSilverWeight);
+      if (newLoanSilverPurity) formData.append('silver_purity', newLoanSilverPurity);
       if (newLoanSilverRate) formData.append('silver_rate', newLoanSilverRate);
       if (newLoanSilverValue) formData.append('silver_value', newLoanSilverValue);
       if (newLoanPhotos) {
@@ -271,8 +287,10 @@ export default function CustomerDetail() {
       setNewLoanNotes('');
       setNewLoanPhotos(null);
       setNewLoanGoldWeight('');
+      setNewLoanGoldPurity('');
       setNewLoanGoldRate('');
       setNewLoanSilverWeight('');
+      setNewLoanSilverPurity('');
       setNewLoanSilverRate('');
     } catch (err) {
       setNewLoanError(err.message);
@@ -308,8 +326,6 @@ export default function CustomerDetail() {
         throw new Error(data.error || 'Failed to record payment');
       }
 
-      // paymentRoutes.js doesn't return the updated loan, just the payment row,
-      // so refetch the customer to get fresh outstanding_principal / interest_shortfall / total_owed.
       const refreshed = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, {
         credentials: 'include',
       });
@@ -335,8 +351,6 @@ export default function CustomerDetail() {
       .reduce((sum, loan) => sum + Number(loan.total_owed), 0)
       .toFixed(2);
     const message = `Hi ${customer.name}, this is a reminder from Om Shivam Jewellers. Your total amount due is ₹${totalDue}. Please contact us at your earliest convenience.`;
-    // sms: body param support varies by OS (Android generally uses ?body=, iOS uses ;body=
-    // after a semicolon) — ?body= works as a reasonable default on most phones.
     return `sms:${customer.phone}?body=${encodeURIComponent(message)}`;
   }
 
@@ -545,9 +559,10 @@ export default function CustomerDetail() {
                 <div className="border border-[#E7E5E4] rounded p-2 bg-[#F5F5F4] mt-1">
                   <p className="text-xs font-semibold text-[#57534E] mb-2">Gold Details (Optional)</p>
                   <div className="flex gap-2">
-                    <input type="number" placeholder="Weight (g)" value={newLoanGoldWeight} onChange={e => setNewLoanGoldWeight(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
-                    <input type="number" placeholder="Rate/g" value={newLoanGoldRate} onChange={e => setNewLoanGoldRate(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
-                    <div className="w-1/3 border border-[#E7E5E4] bg-white text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
+                    <input type="number" placeholder="Weight (g)" value={newLoanGoldWeight} onChange={e => setNewLoanGoldWeight(e.target.value)} className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Purity (%)" value={newLoanGoldPurity} onChange={e => setNewLoanGoldPurity(e.target.value)} min="0" max="100" className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Rate/g" value={newLoanGoldRate} onChange={e => setNewLoanGoldRate(e.target.value)} className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <div className="w-1/4 border border-[#E7E5E4] bg-[#F5F5F4] text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
                       {newLoanGoldValue ? `₹${newLoanGoldValue}` : 'Value'}
                     </div>
                   </div>
@@ -556,23 +571,86 @@ export default function CustomerDetail() {
                 <div className="border border-[#E7E5E4] rounded p-2 bg-[#F5F5F4] mt-1 mb-1">
                   <p className="text-xs font-semibold text-[#57534E] mb-2">Silver Details (Optional)</p>
                   <div className="flex gap-2">
-                    <input type="number" placeholder="Weight (g)" value={newLoanSilverWeight} onChange={e => setNewLoanSilverWeight(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
-                    <input type="number" placeholder="Rate/g" value={newLoanSilverRate} onChange={e => setNewLoanSilverRate(e.target.value)} className="w-1/3 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
-                    <div className="w-1/3 border border-[#E7E5E4] bg-white text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
+                    <input type="number" placeholder="Weight (g)" value={newLoanSilverWeight} onChange={e => setNewLoanSilverWeight(e.target.value)} className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Purity (%)" value={newLoanSilverPurity} onChange={e => setNewLoanSilverPurity(e.target.value)} min="0" max="100" className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <input type="number" placeholder="Rate/g" value={newLoanSilverRate} onChange={e => setNewLoanSilverRate(e.target.value)} className="w-1/4 border border-[#E7E5E4] bg-white text-[#292524] px-2 py-1 rounded text-xs" />
+                    <div className="w-1/4 border border-[#E7E5E4] bg-[#F5F5F4] text-[#78716C] px-2 py-1 rounded text-xs flex items-center">
                       {newLoanSilverValue ? `₹${newLoanSilverValue}` : 'Value'}
                     </div>
                   </div>
                 </div>
-                <label className="text-sm text-[#78716C]">
-                  Photos (optional)
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => setNewLoanPhotos(e.target.files)}
-                    className="block mt-1 text-sm"
-                  />
-                </label>
+                <div>
+                  <p className="text-sm text-[#78716C] mb-1">Photos (optional)</p>
+                  <div className="flex gap-2">
+                    <label className="flex-1 text-center border border-[#E7E5E4] rounded px-3 py-2 text-xs text-[#292524] cursor-pointer hover:border-[#D6D3D1] bg-white">
+                      Take photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => setNewLoanPhotos(prev => [...(prev || []), ...Array.from(e.target.files)])}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="flex-1 text-center border border-[#E7E5E4] rounded px-3 py-2 text-xs text-[#292524] cursor-pointer hover:border-[#D6D3D1] bg-white">
+                      Choose from gallery
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => setNewLoanPhotos(prev => [...(prev || []), ...Array.from(e.target.files)])}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {newLoanPhotos && newLoanPhotos.length > 0 && (
+                    <div className="flex gap-1 flex-wrap mt-2">
+                      {Array.from(newLoanPhotos).map((p, i) => (
+                        <div key={i} className="text-[10px] bg-[#E7E5E4] text-[#57534E] px-2 py-1 rounded flex items-center gap-1">
+                          {p.name}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setConfirmingNewPhotoDeleteIndex(i);
+                            }}
+                            className="text-red-500 hover:text-red-700 ml-1 font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {confirmingNewPhotoDeleteIndex !== null && (
+                    <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 w-full">
+                      <p className="text-red-800 mb-2 text-sm">Remove this photo?</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewLoanPhotos(prev => {
+                              const arr = Array.from(prev || []);
+                              arr.splice(confirmingNewPhotoDeleteIndex, 1);
+                              return arr.length > 0 ? arr : null;
+                            });
+                            setConfirmingNewPhotoDeleteIndex(null);
+                          }}
+                          className="bg-red-700 text-white text-xs px-3 py-1.5 rounded"
+                        >
+                          Yes, remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingNewPhotoDeleteIndex(null)}
+                          className="border border-red-200 text-red-800 text-xs px-3 py-1.5 rounded"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {newLoanError && <p className="text-red-700 text-xs">{newLoanError}</p>}
                 <div className="flex gap-2 mt-1">
                   <button
@@ -658,6 +736,7 @@ export default function CustomerDetail() {
                     {(loan.gold_weight || loan.gold_rate) ? (
                       <div className="flex gap-4 text-xs">
                         <p>Weight: {loan.gold_weight}g</p>
+                        {loan.gold_purity && <p>Purity: {loan.gold_purity}%</p>}
                         <p>Rate: ₹{loan.gold_rate}/g</p>
                         <p>Value: ₹{loan.gold_value}</p>
                       </div>
@@ -671,6 +750,7 @@ export default function CustomerDetail() {
                     {(loan.silver_weight || loan.silver_rate) ? (
                       <div className="flex gap-4 text-xs">
                         <p>Weight: {loan.silver_weight}g</p>
+                        {loan.silver_purity && <p>Purity: {loan.silver_purity}%</p>}
                         <p>Rate: ₹{loan.silver_rate}/g</p>
                         <p>Value: ₹{loan.silver_value}</p>
                       </div>
@@ -719,10 +799,11 @@ export default function CustomerDetail() {
                         <img
                           src={`${process.env.NEXT_PUBLIC_API_URL}/${p.photo_path.replace(/\\/g, '/')}`}
                           alt="Jewellery"
-                          className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4]"
+                          onClick={() => setLightboxPhoto(`${process.env.NEXT_PUBLIC_API_URL}/${p.photo_path.replace(/\\/g, '/')}`)}
+                          className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4] cursor-pointer"
                         />
                         <button
-                          onClick={() => handleDeletePhoto(loan.id, p.id)}
+                          onClick={() => setConfirmingExistingPhotoDeleteId(p.id)}
                           className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-[#E7E5E4] rounded-full text-xs text-[#78716C] flex items-center justify-center hover:text-red-700"
                         >
                           ×
@@ -740,6 +821,28 @@ export default function CustomerDetail() {
                       />
                     </label>
                   </div>
+                  {confirmingExistingPhotoDeleteId && (
+                    <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                      <p className="text-red-800 mb-2 text-sm">Remove this photo?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            handleDeletePhoto(loan.id, confirmingExistingPhotoDeleteId);
+                            setConfirmingExistingPhotoDeleteId(null);
+                          }}
+                          className="bg-red-700 text-white text-xs px-3 py-1.5 rounded"
+                        >
+                          Yes, remove
+                        </button>
+                        <button
+                          onClick={() => setConfirmingExistingPhotoDeleteId(null)}
+                          className="border border-red-200 text-red-800 text-xs px-3 py-1.5 rounded"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {photoError && <p className="text-red-700 text-xs mb-2">{photoError}</p>}
 
                   <h3 className="mt-4 font-semibold text-[#292524]">Payment history</h3>
@@ -832,6 +935,23 @@ export default function CustomerDetail() {
           );
         })}
       </div>
+
+      {lightboxPhoto && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div className="relative max-w-full max-h-full">
+            <img src={lightboxPhoto} className="max-w-full max-h-[90vh] object-contain rounded-lg" alt="Enlarged view" />
+            <button 
+              onClick={() => setLightboxPhoto(null)}
+              className="absolute -top-4 -right-4 bg-white text-black w-8 h-8 rounded-full flex items-center justify-center text-xl hover:bg-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

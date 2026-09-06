@@ -16,12 +16,18 @@ router.post('/loans', upload.array('photos', 10), async (req, res) => {
   try {
     const {
       customer_id, original_principal, interest_rate, loan_date, due_date, notes,
-      gold_weight, gold_rate, gold_value,
-      silver_weight, silver_rate, silver_value
+      gold_weight, gold_rate, gold_purity, gold_value,
+      silver_weight, silver_rate, silver_purity, silver_value
     } = req.body;
 
     if (!due_date) {
       return res.status(400).json({ error: 'due_date is required' });
+    }
+    if ((gold_weight || gold_rate || gold_value) && !gold_purity) {
+      return res.status(400).json({ error: 'Gold purity is required when gold details are provided' });
+    }
+    if ((silver_weight || silver_rate || silver_value) && !silver_purity) {
+      return res.status(400).json({ error: 'Silver purity is required when silver details are provided' });
     }
 
     await client.query('BEGIN');
@@ -29,15 +35,15 @@ router.post('/loans', upload.array('photos', 10), async (req, res) => {
     const loanResult = await client.query(
       `INSERT INTO loans (
          customer_id, original_principal, outstanding_principal, interest_rate, loan_date, due_date, notes,
-         gold_weight, gold_rate, gold_value,
-         silver_weight, silver_rate, silver_value
+         gold_weight, gold_rate, gold_purity, gold_value,
+         silver_weight, silver_rate, silver_purity, silver_value
        )
-       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         customer_id, original_principal, interest_rate, loan_date, due_date || null, notes || null,
-        gold_weight || null, gold_rate || null, gold_value || null,
-        silver_weight || null, silver_rate || null, silver_value || null
+        gold_weight || null, gold_rate || null, gold_purity || null, gold_value || null,
+        silver_weight || null, silver_rate || null, silver_purity || null, silver_value || null
       ]
     );
 
