@@ -4,6 +4,7 @@ import Link from 'next/link';
 export const metadata = {
   title: 'Om Shivam Jewellers',
   description: 'Loan ledger',
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({ children }) {
