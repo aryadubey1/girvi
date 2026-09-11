@@ -44,6 +44,8 @@ jobs:
             cd backend
             npm install --production
 
+            npx node-pg-migrate up
+
             # Explicitly ensure Chromium is installed, in case postinstall
             # scripts are blocked by npm's allow-scripts config on this VPS.
             npx puppeteer browsers install chrome
