@@ -55,9 +55,10 @@ export default function Home() {
     return amountsVisible ? `₹${Number(n).toLocaleString('en-IN')}` : '••••••';
   }
 
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCustomers = customers.filter(c => {
+    const term = search.toLowerCase();
+    return c.name.toLowerCase().includes(term) || (c.phone && c.phone.toLowerCase().includes(term));
+  });
 
   if (loading) return <div className="p-6 text-[#78716C]">Loading...</div>;
 
@@ -124,47 +125,107 @@ export default function Home() {
       </div>
 
       {dashboard && (
-        <div className="hidden md:grid md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-6 h-6 rounded-full bg-[#FDF3E3] flex items-center justify-center text-[#A16207] text-xs font-bold">
-                ₹
+        <div className="hidden md:flex md:flex-col gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#FDF3E3] flex items-center justify-center text-[#A16207] text-xs font-bold">
+                  ₹
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Total out on loan
+                </p>
               </div>
-              <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
-                Total out on loan
+              <p className="text-2xl font-bold text-[#A16207] mt-1">
+                {formatAmount(dashboard.total_out)}
               </p>
             </div>
-            <p className="text-2xl font-bold text-[#A16207] mt-1">
-              {formatAmount(dashboard.total_out)}
-            </p>
+
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#FEE2E2] flex items-center justify-center text-[#DC2626] text-xs font-bold">
+                  %
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Total Interest (Outstanding)
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-[#DC2626] mt-1">
+                {formatAmount(dashboard.total_interest_out)}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#EFF6FF] flex items-center justify-center text-[#1D4ED8] text-xs font-bold">
+                  #
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Customers with balance
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-[#292524] mt-1">
+                {dashboard.active_customers}
+              </p>
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-6 h-6 rounded-full bg-[#ECFDF5] flex items-center justify-center text-[#047857] text-xs font-bold">
-                ✓
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-[#FAF9F6] rounded-xl p-5 shadow-sm border border-[#E7E5E4]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#F3F4F6] flex items-center justify-center text-[#4B5563] text-xs font-bold">
+                  ↗
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Principal Given
+                </p>
               </div>
-              <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
-                Collected this month
+              <p className="text-2xl font-bold text-[#292524] mt-1">
+                {formatAmount(dashboard.principal_given_month)}
               </p>
             </div>
-            <p className="text-2xl font-bold text-[#292524] mt-1">
-              {formatAmount(dashboard.collected_this_month)}
-            </p>
-          </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-6 h-6 rounded-full bg-[#EFF6FF] flex items-center justify-center text-[#1D4ED8] text-xs font-bold">
-                #
+            <div className="bg-[#FAF9F6] rounded-xl p-5 shadow-sm border border-[#E7E5E4]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#ECFDF5] flex items-center justify-center text-[#047857] text-xs font-bold">
+                  ↙
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Principal Received
+                </p>
               </div>
-              <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
-                Customers with balance
+              <p className="text-2xl font-bold text-[#292524] mt-1">
+                {formatAmount(dashboard.principal_received_month)}
               </p>
             </div>
-            <p className="text-2xl font-bold text-[#292524] mt-1">
-              {dashboard.active_customers}
-            </p>
+
+            <div className="bg-[#FAF9F6] rounded-xl p-5 shadow-sm border border-[#E7E5E4]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#ECFDF5] flex items-center justify-center text-[#047857] text-xs font-bold">
+                  %
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Interest Received
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-[#292524] mt-1">
+                {formatAmount(dashboard.interest_received_month)}
+              </p>
+            </div>
+
+            <div className="bg-[#FAF9F6] rounded-xl p-5 shadow-sm border border-[#E7E5E4]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-[#FDF3E3] flex items-center justify-center text-[#A16207] text-xs font-bold">
+                  ∑
+                </div>
+                <p className="text-xs font-semibold text-[#78716C] uppercase tracking-wide">
+                  Total Collected
+                </p>
+              </div>
+              <p className="text-2xl font-bold text-[#A16207] mt-1">
+                {formatAmount(Number(dashboard.principal_received_month) + Number(dashboard.interest_received_month))}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -181,7 +242,7 @@ export default function Home() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search customers..."
+            placeholder="Search by name or phone..."
             className="w-full bg-white text-[#292524] px-3 py-2.5 rounded-lg mb-3 text-sm shadow-sm border-0 focus:ring-2 focus:ring-[#A16207] outline-none"
           />
 

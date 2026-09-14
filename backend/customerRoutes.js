@@ -1,5 +1,5 @@
 const express = require('express');
-const calculateAccruedInterest = require('./interestCalculator');
+// calculateAccruedInterest is no longer used, ledger handles it
 const buildLoanLedger = require('./buildLoanLedger');
 const router = express.Router();
 const pool = require('./db');
@@ -58,15 +58,39 @@ router.post('/customers', upload.single('photo'), async (req, res) => {
 
 router.get('/customers', async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT c.*,
-        COALESCE(SUM(l.outstanding_principal) + SUM(l.interest_shortfall), 0) as current_balance
-       FROM customers c
-       LEFT JOIN loans l ON l.customer_id = c.id AND l.is_deleted = false
-       GROUP BY c.id
-       ORDER BY current_balance DESC`
+    const customersResult = await pool.query('SELECT * FROM customers');
+    const customers = customersResult.rows;
+
+    const activeLoansResult = await pool.query(
+      'SELECT * FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0'
     );
-    res.json(result.rows);
+    const activeLoans = activeLoansResult.rows;
+
+    const paymentsResult = await pool.query(
+      'SELECT * FROM payments WHERE loan_id IN (SELECT id FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0) ORDER BY payment_date ASC'
+    );
+    const allPayments = paymentsResult.rows;
+
+    const paymentsByLoanId = {};
+    for (const p of allPayments) {
+      if (!paymentsByLoanId[p.loan_id]) paymentsByLoanId[p.loan_id] = [];
+      paymentsByLoanId[p.loan_id].push(p);
+    }
+
+    const customerBalances = {};
+    for (const loan of activeLoans) {
+      const payments = paymentsByLoanId[loan.id] || [];
+      const ledger = buildLoanLedger(loan, payments);
+      if (!customerBalances[loan.customer_id]) customerBalances[loan.customer_id] = 0;
+      customerBalances[loan.customer_id] += ledger.finalState.totalOwed;
+    }
+
+    const customersWithBalances = customers.map(c => ({
+      ...c,
+      current_balance: customerBalances[c.id] || 0
+    })).sort((a, b) => b.current_balance - a.current_balance);
+
+    res.json(customersWithBalances);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch customers' });
@@ -105,29 +129,16 @@ router.get('/customers/:id', async (req, res) => {
       );
       const photos = photosResult.rows;
 
-      const lastPaymentDate = payments[0]?.payment_date || loan.loan_date;
-
-      const { daysSincePayment, interestAccrued } = calculateAccruedInterest(
-        parseFloat(loan.outstanding_principal),
-        parseFloat(loan.interest_rate),
-        lastPaymentDate
-      );
+      // buildLoanLedger sorts payments internally
+      const ledger = buildLoanLedger(loan, payments);
+      const { outstandingPrincipal, interestShortfall, totalOwed } = ledger.finalState;
 
       const loanWithComputed = {
         ...loan,
-        days_since_last_payment: daysSincePayment,
-        interest_accrued_today: interestAccrued,
-        total_owed: Math.round(
-          (parseFloat(loan.outstanding_principal) +
-            parseFloat(loan.interest_shortfall) +
-            interestAccrued) *
-            100
-        ) / 100,
+        outstanding_principal: outstandingPrincipal,
+        interest_shortfall: interestShortfall,
+        total_owed: totalOwed,
       };
-
-      // buildLoanLedger sorts payments internally, so passing the DESC-ordered
-      // array straight through (same one used for the payment history list) is fine.
-      const ledger = buildLoanLedger(loanWithComputed, payments);
 
       loans.push({
         ...loanWithComputed,

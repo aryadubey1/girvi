@@ -4,7 +4,6 @@ const pool = require('./db');
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
-const calculateAccruedInterest = require('./interestCalculator');
 const buildLoanLedger = require('./buildLoanLedger');
 
 // ── Shop details ──
@@ -276,24 +275,8 @@ router.get('/customers/:id/pdf', async (req, res) => {
       );
       const payments = paymentsResult.rows;
 
-      const isActive =
-        parseFloat(loan.outstanding_principal) + parseFloat(loan.interest_shortfall) > 0;
-
-      if (isActive) {
-        const lastPaymentDate = payments[0]?.payment_date || loan.loan_date;
-        const { daysSincePayment, interestAccrued } = calculateAccruedInterest(
-          parseFloat(loan.outstanding_principal),
-          parseFloat(loan.interest_rate),
-          lastPaymentDate
-        );
-        loan.days_since_last_payment = daysSincePayment;
-        loan.interest_accrued_today = interestAccrued;
-      } else {
-        loan.days_since_last_payment = 0;
-        loan.interest_accrued_today = 0;
-      }
-
       const ledger = buildLoanLedger(loan, payments);
+      const isActive = ledger.finalState.outstandingPrincipal + ledger.finalState.interestShortfall > 0;
 
       loans.push({
         id: loan.id,

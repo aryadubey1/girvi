@@ -1,4 +1,4 @@
-const DAYS_IN_MONTH = 30; // Must match interestCalculator.js
+const DAYS_IN_MONTH = 30;
 
 function daysBetween(dateA, dateB) {
   const a = new Date(dateA + 'T00:00:00Z');
@@ -6,98 +6,139 @@ function daysBetween(dateA, dateB) {
   return Math.floor((b - a) / (1000 * 60 * 60 * 24));
 }
 
-function accruedBetween(principal, interestRate, fromDate, toDate) {
-  const days = daysBetween(fromDate, toDate);
-  if (days <= 0) return 0;
+function accruedBetween(principal, interestRate, loanDate, fromDate, toDate) {
+  const daysFromStartToFrom = daysBetween(loanDate, fromDate);
+  const daysFromStartToTo = daysBetween(loanDate, toDate);
+
+  if (daysFromStartToTo <= daysFromStartToFrom) return 0;
+
+  // Since the first 30 days are applied upfront, we only accrue for days beyond 30.
+  const effectiveFrom = Math.max(daysFromStartToFrom, 30);
+  const effectiveTo = Math.max(daysFromStartToTo, 30);
+
+  const daysToAccrue = effectiveTo - effectiveFrom;
+  if (daysToAccrue <= 0) return 0;
+
   const dailyRate = (interestRate / 100) / DAYS_IN_MONTH;
-  return Math.round(principal * dailyRate * days * 100) / 100;
+  return Math.round(principal * dailyRate * daysToAccrue * 100) / 100;
 }
 
-/**
- * Replays a loan's payment history into ledger rows.
- *
- * @param {object} loan - loan row; must include original_principal, loan_date,
- *   interest_rate, outstanding_principal, interest_shortfall.
- *   For active loans the caller must also attach days_since_last_payment
- *   and interest_accrued_today (from calculateAccruedInterest).
- * @param {object[]} payments - payment rows (any order — sorted ascending inside).
- * @returns {object[]} ledger rows, oldest first.
- */
 function buildLoanLedger(loan, payments) {
-  const sorted = [...payments].sort(
-    (a, b) => new Date(a.payment_date) - new Date(b.payment_date)
-  );
-
   const rate = parseFloat(loan.interest_rate);
   let runningPrincipal = parseFloat(loan.original_principal);
-  let runningInterestOwed = 0;
+  // Initial 1 month interest
+  let runningInterestOwed = Math.round(runningPrincipal * (rate / 100) * 100) / 100;
 
   const rows = [];
 
-  // Row 1 — disbursement
   rows.push({
     date: loan.loan_date,
-    event: 'Loan disbursed',
+    event: 'Loan disbursed (1 month interest upfront)',
     principalBalance: runningPrincipal,
     interestPaid: null,
-    interestOwedAtRow: 0,
+    interestOwedAtRow: runningInterestOwed,
+  });
+
+  const events = [];
+  for (const pmt of payments) {
+    events.push({ type: 'payment', date: pmt.payment_date, data: pmt });
+  }
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const maxDate = payments.length > 0 && payments[payments.length - 1].payment_date > todayStr
+    ? payments[payments.length - 1].payment_date
+    : todayStr;
+
+  let daysSinceStart = daysBetween(loan.loan_date, maxDate);
+  let compDay = 360;
+  while (compDay <= daysSinceStart) {
+    const compDateObj = new Date(loan.loan_date + 'T00:00:00Z');
+    compDateObj.setUTCDate(compDateObj.getUTCDate() + compDay);
+    const compDateStr = compDateObj.toISOString().split('T')[0];
+    events.push({ type: 'compounding', date: compDateStr });
+    compDay += 360;
+  }
+
+  events.sort((a, b) => {
+    if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
+    if (a.type === b.type) return 0;
+    return a.type === 'payment' ? -1 : 1;
   });
 
   let previousDate = loan.loan_date;
 
-  for (const pmt of sorted) {
-    const accrued = accruedBetween(runningPrincipal, rate, previousDate, pmt.payment_date);
-    const interestOwedAtThisPayment = runningInterestOwed + accrued;
+  for (const ev of events) {
+    const accrued = accruedBetween(runningPrincipal, rate, loan.loan_date, previousDate, ev.date);
+    runningInterestOwed += accrued;
+    runningInterestOwed = Math.round(runningInterestOwed * 100) / 100;
 
-    const interestComp = parseFloat(pmt.interest_component);
-    const principalComp = parseFloat(pmt.principal_component);
+    if (ev.type === 'payment') {
+      const pmt = ev.data;
+      const interestComp = parseFloat(pmt.interest_component) || 0;
+      const principalComp = parseFloat(pmt.principal_component) || 0;
 
-    const interestOwedAfter =
-      Math.round((interestOwedAtThisPayment - interestComp) * 100) / 100;
+      const interestOwedAfter = Math.round((runningInterestOwed - interestComp) * 100) / 100;
+      runningPrincipal = Math.round((runningPrincipal - principalComp) * 100) / 100;
+      runningInterestOwed = interestOwedAfter;
 
-    if (interestOwedAfter < 0) {
-      console.warn(
-        `buildLoanLedger: negative interestOwedAtRow (${interestOwedAfter}) ` +
-        `for loan ${loan.id}, payment ${pmt.id}. ` +
-        `interest_component ${interestComp} exceeds computed owed ${interestOwedAtThisPayment.toFixed(2)}.`
-      );
+      rows.push({
+        date: ev.date,
+        event: 'Payment received',
+        principalBalance: runningPrincipal,
+        interestPaid: interestComp,
+        interestOwedAtRow: runningInterestOwed,
+        paymentTotal: parseFloat(pmt.amount_paid),
+      });
+    } else if (ev.type === 'compounding') {
+      if (runningInterestOwed > 0) {
+        runningPrincipal += runningInterestOwed;
+        runningPrincipal = Math.round(runningPrincipal * 100) / 100;
+        
+        rows.push({
+          date: ev.date,
+          event: 'Yearly Compounding (Unpaid interest added to principal)',
+          principalBalance: runningPrincipal,
+          interestPaid: null,
+          interestOwedAtRow: 0,
+        });
+        runningInterestOwed = 0;
+      }
     }
-
-    runningPrincipal = Math.round((runningPrincipal - principalComp) * 100) / 100;
-    runningInterestOwed = interestOwedAfter;
-
-    rows.push({
-      date: pmt.payment_date,
-      event: 'Payment received',
-      principalBalance: runningPrincipal,
-      interestPaid: interestComp,
-      interestOwedAtRow: interestOwedAfter,
-      paymentTotal: parseFloat(pmt.amount_paid),
-    });
-
-    previousDate = pmt.payment_date;
+    previousDate = ev.date;
   }
 
-  // Final "today" row — only for active loans
-  const isActive =
-    parseFloat(loan.outstanding_principal) + parseFloat(loan.interest_shortfall) > 0;
-
-  if (isActive) {
-    // Use our own runningInterestOwed (tracked correctly through the replay loop above),
-    // not loan.interest_shortfall — that's a separate DB-stored calculation from
-    // paymentRoutes.js and can drift by ~₹1 from this one.
-    const todayInterestOwed =
-      Math.round((runningInterestOwed + parseFloat(loan.interest_accrued_today)) * 100) / 100;
+  const isActive = runningPrincipal > 0;
+  if (isActive && previousDate !== todayStr && new Date(todayStr) > new Date(loan.loan_date)) {
+    const accrued = accruedBetween(runningPrincipal, rate, loan.loan_date, previousDate, todayStr);
+    runningInterestOwed += accrued;
+    runningInterestOwed = Math.round(runningInterestOwed * 100) / 100;
 
     rows.push({
       date: 'Today',
-      event: `Interest accrued (${loan.days_since_last_payment} days @ ${loan.interest_rate}%/mo)`,
+      event: `Interest accrued to date`,
       principalBalance: runningPrincipal,
       interestPaid: null,
-      interestOwedAtRow: todayInterestOwed,
+      interestOwedAtRow: runningInterestOwed,
       isSummaryRow: true,
     });
+  } else if (isActive && previousDate === todayStr) {
+      // If the last event was today, we just add a summary row so the UI has a 'Today' row
+      rows.push({
+          date: 'Today',
+          event: `Current Balance`,
+          principalBalance: runningPrincipal,
+          interestPaid: null,
+          interestOwedAtRow: runningInterestOwed,
+          isSummaryRow: true,
+      });
   }
+
+  // To support external callers that need the final dynamically calculated state
+  rows.finalState = {
+    outstandingPrincipal: runningPrincipal,
+    interestShortfall: runningInterestOwed,
+    totalOwed: runningPrincipal + runningInterestOwed
+  };
 
   return rows;
 }

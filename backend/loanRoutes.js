@@ -32,18 +32,22 @@ router.post('/loans', upload.array('photos', 10), async (req, res) => {
 
     await client.query('BEGIN');
 
+    const initial_interest = Math.round((parseFloat(original_principal) * parseFloat(interest_rate)) / 100);
+
     const loanResult = await client.query(
       `INSERT INTO loans (
          customer_id, original_principal, outstanding_principal, interest_rate, loan_date, due_date, notes,
          gold_weight, gold_rate, gold_purity, gold_value,
-         silver_weight, silver_rate, silver_purity, silver_value
+         silver_weight, silver_rate, silver_purity, silver_value,
+         interest_shortfall
        )
-       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         customer_id, original_principal, interest_rate, loan_date, due_date || null, notes || null,
         gold_weight || null, gold_rate || null, gold_purity || null, gold_value || null,
-        silver_weight || null, silver_rate || null, silver_purity || null, silver_value || null
+        silver_weight || null, silver_rate || null, silver_purity || null, silver_value || null,
+        initial_interest
       ]
     );
 
@@ -59,7 +63,12 @@ router.post('/loans', upload.array('photos', 10), async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.status(201).json(loan);
+    
+    // Compute the ledger for the new loan so frontend has it immediately
+    const buildLoanLedger = require('./buildLoanLedger');
+    const ledger = buildLoanLedger(loan, []);
+    
+    res.status(201).json({ ...loan, ledger });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);

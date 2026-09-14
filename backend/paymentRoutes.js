@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('./db');
-const calculateAccruedInterest = require('./interestCalculator');
-
+const buildLoanLedger = require('./buildLoanLedger');
 router.post('/payments', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -22,23 +21,16 @@ router.post('/payments', async (req, res) => {
 
     const loan = loanResult.rows[0];
 
-    const lastPaymentResult = await client.query(
-      'SELECT payment_date FROM payments WHERE loan_id = $1 ORDER BY payment_date DESC, id DESC LIMIT 1',
+    const paymentsResult = await client.query(
+      'SELECT * FROM payments WHERE loan_id = $1 ORDER BY payment_date ASC',
       [loan_id]
     );
+    const payments = paymentsResult.rows;
 
-    const lastDate = lastPaymentResult.rows.length > 0
-      ? lastPaymentResult.rows[0].payment_date
-      : loan.loan_date;
-
-    const { interestAccrued: newlyAccrued } = calculateAccruedInterest(
-      parseFloat(loan.outstanding_principal),
-      parseFloat(loan.interest_rate),
-      lastDate
-    );
-
-    const carriedShortfall = parseFloat(loan.interest_shortfall);
-    const totalInterestOwed = Math.round((carriedShortfall + newlyAccrued) * 100) / 100;
+    // Run the ledger to find the exact dynamically calculated balance as of today
+    const ledger = buildLoanLedger(loan, payments);
+    const { outstandingPrincipal, interestShortfall, totalOwed } = ledger.finalState;
+    const totalInterestOwed = interestShortfall;
 
     const paid = parseFloat(amount_paid);
     let interestComponent, principalComponent, newOutstandingPrincipal, newShortfall;
@@ -46,12 +38,12 @@ router.post('/payments', async (req, res) => {
     if (paid <= totalInterestOwed) {
       interestComponent = paid;
       principalComponent = 0;
-      newOutstandingPrincipal = parseFloat(loan.outstanding_principal);
+      newOutstandingPrincipal = outstandingPrincipal;
       newShortfall = Math.round((totalInterestOwed - paid) * 100) / 100;
     } else {
       interestComponent = totalInterestOwed;
       principalComponent = Math.round((paid - totalInterestOwed) * 100) / 100;
-      newOutstandingPrincipal = parseFloat(loan.outstanding_principal) - principalComponent;
+      newOutstandingPrincipal = outstandingPrincipal - principalComponent;
       newShortfall = 0;
     }
 

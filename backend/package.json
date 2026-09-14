@@ -18,7 +18,9 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "form-data": "^4.0.6",
     "multer": "^2.2.0",
+    "node-fetch": "^3.3.2",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.0",
     "puppeteer": "^25.8.0"

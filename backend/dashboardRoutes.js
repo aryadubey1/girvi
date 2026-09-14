@@ -4,34 +4,72 @@ const pool = require('./db');
 
 router.get('/dashboard', async (req, res) => {
   try {
-    const totalOutResult = await pool.query(
-      `SELECT COALESCE(SUM(outstanding_principal) + SUM(interest_shortfall), 0) as total_out
-       FROM loans WHERE is_deleted = false`
+    const buildLoanLedger = require('./buildLoanLedger');
+
+    const activeLoansResult = await pool.query(
+      `SELECT l.*, c.name as customer_name 
+       FROM loans l 
+       JOIN customers c ON c.id = l.customer_id 
+       WHERE l.is_deleted = false AND (l.outstanding_principal + l.interest_shortfall) > 0`
+    );
+    const activeLoans = activeLoansResult.rows;
+
+    const principalGivenMonthResult = await pool.query(
+      `SELECT COALESCE(SUM(original_principal), 0) as total
+       FROM loans
+       WHERE loan_date >= date_trunc('month', CURRENT_DATE) AND is_deleted = false`
     );
 
-    const collectedThisMonthResult = await pool.query(
-      `SELECT COALESCE(SUM(amount_paid), 0) as collected
+    const principalReceivedMonthResult = await pool.query(
+      `SELECT COALESCE(SUM(principal_component), 0) as total
        FROM payments
        WHERE payment_date >= date_trunc('month', CURRENT_DATE)`
     );
 
-    const activeCustomersResult = await pool.query(
-      `SELECT COUNT(DISTINCT c.id) as count
-       FROM customers c
-       JOIN loans l ON l.customer_id = c.id
-       WHERE (l.outstanding_principal + l.interest_shortfall) > 0 AND l.is_deleted = false`
+    const interestReceivedMonthResult = await pool.query(
+      `SELECT COALESCE(SUM(interest_component), 0) as total
+       FROM payments
+       WHERE payment_date >= date_trunc('month', CURRENT_DATE)`
     );
+    const paymentsResult = await pool.query(
+      `SELECT * FROM payments 
+       WHERE loan_id IN (SELECT id FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0) 
+       ORDER BY payment_date ASC`
+    );
+    const allPayments = paymentsResult.rows;
 
-    const topBorrowersResult = await pool.query(
-      `SELECT c.id, c.name,
-        SUM(l.outstanding_principal) + SUM(l.interest_shortfall) as total_owed
-       FROM customers c
-       JOIN loans l ON l.customer_id = c.id
-       WHERE (l.outstanding_principal + l.interest_shortfall) > 0 AND l.is_deleted = false
-       GROUP BY c.id, c.name
-       ORDER BY total_owed DESC
-       LIMIT 5`
-    );
+    const paymentsByLoanId = {};
+    for (const p of allPayments) {
+      if (!paymentsByLoanId[p.loan_id]) paymentsByLoanId[p.loan_id] = [];
+      paymentsByLoanId[p.loan_id].push(p);
+    }
+
+    let totalOut = 0;
+    let totalInterestOut = 0;
+    const activeCustomersSet = new Set();
+    const borrowerTotals = {};
+
+    for (const loan of activeLoans) {
+      const payments = paymentsByLoanId[loan.id] || [];
+      const ledger = buildLoanLedger(loan, payments);
+      const totalOwed = ledger.finalState.totalOwed;
+      const interestShortfall = ledger.finalState.interestShortfall;
+      
+      if (totalOwed > 0) {
+        totalOut += totalOwed;
+        totalInterestOut += interestShortfall;
+        activeCustomersSet.add(loan.customer_id);
+        
+        if (!borrowerTotals[loan.customer_id]) {
+          borrowerTotals[loan.customer_id] = { id: loan.customer_id, name: loan.customer_name, total_owed: 0 };
+        }
+        borrowerTotals[loan.customer_id].total_owed += totalOwed;
+      }
+    }
+
+    const topBorrowers = Object.values(borrowerTotals)
+      .sort((a, b) => b.total_owed - a.total_owed)
+      .slice(0, 5);
 
     const recentPaymentsResult = await pool.query(
       `SELECT p.id, p.amount_paid, p.payment_date, c.name as customer_name, c.id as customer_id
@@ -43,10 +81,13 @@ router.get('/dashboard', async (req, res) => {
     );
 
     res.json({
-      total_out: totalOutResult.rows[0].total_out,
-      collected_this_month: collectedThisMonthResult.rows[0].collected,
-      active_customers: parseInt(activeCustomersResult.rows[0].count),
-      top_borrowers: topBorrowersResult.rows,
+      total_out: totalOut,
+      total_interest_out: totalInterestOut,
+      principal_given_month: principalGivenMonthResult.rows[0].total,
+      principal_received_month: principalReceivedMonthResult.rows[0].total,
+      interest_received_month: interestReceivedMonthResult.rows[0].total,
+      active_customers: activeCustomersSet.size,
+      top_borrowers: topBorrowers,
       recent_payments: recentPaymentsResult.rows,
     });
   } catch (err) {
