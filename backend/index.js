@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const pool = require('./db');
+const { prodPool } = require('./db');
 const customerRoutes = require('./customerRoutes');
 const loanRoutes = require('./loanRoutes');
 const paymentRoutes = require('./paymentRoutes');
@@ -45,7 +45,7 @@ app.get('/', (req, res) => {
 
 app.get('/test-db', async (req, res) => {
   try {
-    const result = await pool.query('SELECT NOW()');
+    const result = await prodPool.query('SELECT NOW()');
     res.send(`Database connected. Server time: ${result.rows[0].now}`);
   } catch (err) {
     console.error(err);

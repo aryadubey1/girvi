@@ -2,7 +2,6 @@ const express = require('express');
 // calculateAccruedInterest is no longer used, ledger handles it
 const buildLoanLedger = require('./buildLoanLedger');
 const router = express.Router();
-const pool = require('./db');
 const multer = require('multer');
 
 const storage = multer.diskStorage({
@@ -41,7 +40,7 @@ router.post('/customers', upload.single('photo'), async (req, res) => {
 
     const photoPath = req.file ? req.file.path : null;
 
-    const result = await pool.query(
+    const result = await req.db.query(
       `INSERT INTO customers (name, phone, address, photo_path, aadhar_number, pan_number, email)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
@@ -58,15 +57,15 @@ router.post('/customers', upload.single('photo'), async (req, res) => {
 
 router.get('/customers', async (req, res) => {
   try {
-    const customersResult = await pool.query('SELECT * FROM customers');
+    const customersResult = await req.db.query('SELECT * FROM customers');
     const customers = customersResult.rows;
 
-    const activeLoansResult = await pool.query(
+    const activeLoansResult = await req.db.query(
       'SELECT * FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0'
     );
     const activeLoans = activeLoansResult.rows;
 
-    const paymentsResult = await pool.query(
+    const paymentsResult = await req.db.query(
       'SELECT * FROM payments WHERE loan_id IN (SELECT id FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0) ORDER BY payment_date ASC'
     );
     const allPayments = paymentsResult.rows;
@@ -99,7 +98,7 @@ router.get('/customers', async (req, res) => {
 
 router.get('/customers/:id', async (req, res) => {
   try {
-    const customerResult = await pool.query(
+    const customerResult = await req.db.query(
       `SELECT * FROM customers WHERE id = $1`,
       [req.params.id]
     );
@@ -108,7 +107,7 @@ router.get('/customers/:id', async (req, res) => {
     }
     const customer = customerResult.rows[0];
 
-    const loansResult = await pool.query(
+    const loansResult = await req.db.query(
       `SELECT * FROM loans
        WHERE customer_id = $1
        ORDER BY created_at DESC`,
@@ -117,13 +116,13 @@ router.get('/customers/:id', async (req, res) => {
 
     const loans = [];
     for (const loan of loansResult.rows) {
-      const paymentsResult = await pool.query(
+      const paymentsResult = await req.db.query(
         `SELECT * FROM payments WHERE loan_id = $1 ORDER BY payment_date DESC`,
         [loan.id]
       );
       const payments = paymentsResult.rows;
 
-      const photosResult = await pool.query(
+      const photosResult = await req.db.query(
         `SELECT * FROM loan_photos WHERE loan_id = $1`,
         [loan.id]
       );
@@ -168,7 +167,7 @@ router.put('/customers/:id', async (req, res) => {
       return res.status(400).json({ error: identityError });
     }
 
-    const result = await pool.query(
+    const result = await req.db.query(
       `UPDATE customers
        SET name = $1, phone = $2, address = $3, aadhar_number = $4, pan_number = $5, email = $6
        WHERE id = $7 RETURNING *`,
@@ -187,7 +186,7 @@ router.put('/customers/:id', async (req, res) => {
 });
 
 router.delete('/customers/:id', async (req, res) => {
-  const client = await pool.connect();
+  const client = await req.db.connect();
   try {
     await client.query('BEGIN');
 

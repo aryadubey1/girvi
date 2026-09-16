@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
-const pool = require('./db');
+const { prodPool } = require('./db');
 const requireAuth = require('./requireAuth');
 
 router.post('/login', async (req, res) => {
@@ -12,8 +12,8 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      'SELECT id, username, password_hash FROM users WHERE username = $1',
+    const result = await prodPool.query(
+      'SELECT id, username, password_hash, db_target FROM users WHERE username = $1',
       [username]
     );
 
@@ -31,8 +31,9 @@ router.post('/login', async (req, res) => {
     req.session.authenticated = true;
     req.session.userId = user.id;
     req.session.username = user.username;
+    req.session.dbTarget = user.db_target;
 
-    return res.json({ success: true, username: user.username });
+    return res.json({ success: true, username: user.username, dbTarget: user.db_target });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Login failed' });
@@ -50,6 +51,7 @@ router.get('/check-auth', (req, res) => {
   res.json({
     authenticated,
     username: authenticated ? req.session.username : null,
+    dbTarget: authenticated ? req.session.dbTarget : null,
   });
 });
 
@@ -65,7 +67,9 @@ router.post('/change-password', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
+    // Users table always lives in the prod DB, regardless of which DB
+    // this user's session queries for customer/loan data.
+    const result = await prodPool.query(
       'SELECT id, password_hash FROM users WHERE id = $1',
       [req.session.userId]
     );
@@ -82,7 +86,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+    await prodPool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
 
     return res.json({ success: true });
   } catch (err) {

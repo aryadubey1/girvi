@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('./db');
 const multer = require('multer');
 
 const storage = multer.diskStorage({
@@ -12,7 +11,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.post('/loans', upload.array('photos', 10), async (req, res) => {
-  const client = await pool.connect();
+  const client = await req.db.connect();
   try {
     const {
       customer_id, original_principal, interest_rate, loan_date, due_date, notes,
@@ -82,7 +81,7 @@ router.put('/loans/:id', async (req, res) => {
   try {
     const { notes } = req.body;
 
-    const result = await pool.query(
+    const result = await req.db.query(
       `UPDATE loans SET notes = $1 WHERE id = $2 RETURNING *`,
       [notes || null, req.params.id]
     );
@@ -100,7 +99,7 @@ router.put('/loans/:id', async (req, res) => {
 
 router.delete('/loans/:id', async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await req.db.query(
       `UPDATE loans SET is_deleted = true WHERE id = $1 RETURNING *`,
       [req.params.id]
     );
@@ -124,7 +123,7 @@ router.post('/loans/:id/photos', upload.array('photos', 10), async (req, res) =>
 
     const inserted = [];
     for (const file of req.files) {
-      const result = await pool.query(
+      const result = await req.db.query(
         `INSERT INTO loan_photos (loan_id, photo_path) VALUES ($1, $2) RETURNING *`,
         [req.params.id, file.path]
       );
@@ -140,7 +139,7 @@ router.post('/loans/:id/photos', upload.array('photos', 10), async (req, res) =>
 
 router.delete('/loans/:loanId/photos/:photoId', async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await req.db.query(
       `DELETE FROM loan_photos WHERE id = $1 AND loan_id = $2 RETURNING *`,
       [req.params.photoId, req.params.loanId]
     );

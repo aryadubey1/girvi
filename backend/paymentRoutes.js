@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('./db');
 const buildLoanLedger = require('./buildLoanLedger');
 router.post('/payments', async (req, res) => {
-  const client = await pool.connect();
+  const client = await req.db.connect();
   try {
     const { loan_id, amount_paid, payment_date } = req.body;
 

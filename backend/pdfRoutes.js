@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('./db');
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
@@ -249,7 +248,7 @@ function buildInvoiceHtml({ shop, logoDataUri, customer, loans, generatedAt }) {
 router.get('/customers/:id/pdf', async (req, res) => {
   let browser;
   try {
-    const customerResult = await pool.query(
+    const customerResult = await req.db.query(
       'SELECT * FROM customers WHERE id = $1',
       [req.params.id]
     );
@@ -258,7 +257,7 @@ router.get('/customers/:id/pdf', async (req, res) => {
     }
     const customer = customerResult.rows[0];
 
-    const loansResult = await pool.query(
+    const loansResult = await req.db.query(
       'SELECT * FROM loans WHERE customer_id = $1 ORDER BY loan_date ASC',
       [req.params.id]
     );
@@ -269,7 +268,7 @@ router.get('/customers/:id/pdf', async (req, res) => {
 
     const loans = [];
     for (const loan of loansResult.rows) {
-      const paymentsResult = await pool.query(
+      const paymentsResult = await req.db.query(
         'SELECT * FROM payments WHERE loan_id = $1 ORDER BY payment_date DESC',
         [loan.id]
       );

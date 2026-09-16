@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('./db');
 
 router.get('/dashboard', async (req, res) => {
   try {
     const buildLoanLedger = require('./buildLoanLedger');
 
-    const activeLoansResult = await pool.query(
+    const activeLoansResult = await req.db.query(
       `SELECT l.*, c.name as customer_name 
        FROM loans l 
        JOIN customers c ON c.id = l.customer_id 
@@ -14,24 +13,24 @@ router.get('/dashboard', async (req, res) => {
     );
     const activeLoans = activeLoansResult.rows;
 
-    const principalGivenMonthResult = await pool.query(
+    const principalGivenMonthResult = await req.db.query(
       `SELECT COALESCE(SUM(original_principal), 0) as total
        FROM loans
        WHERE loan_date >= date_trunc('month', CURRENT_DATE) AND is_deleted = false`
     );
 
-    const principalReceivedMonthResult = await pool.query(
+    const principalReceivedMonthResult = await req.db.query(
       `SELECT COALESCE(SUM(principal_component), 0) as total
        FROM payments
        WHERE payment_date >= date_trunc('month', CURRENT_DATE)`
     );
 
-    const interestReceivedMonthResult = await pool.query(
+    const interestReceivedMonthResult = await req.db.query(
       `SELECT COALESCE(SUM(interest_component), 0) as total
        FROM payments
        WHERE payment_date >= date_trunc('month', CURRENT_DATE)`
     );
-    const paymentsResult = await pool.query(
+    const paymentsResult = await req.db.query(
       `SELECT * FROM payments 
        WHERE loan_id IN (SELECT id FROM loans WHERE is_deleted = false AND (outstanding_principal + interest_shortfall) > 0) 
        ORDER BY payment_date ASC`
@@ -71,7 +70,7 @@ router.get('/dashboard', async (req, res) => {
       .sort((a, b) => b.total_owed - a.total_owed)
       .slice(0, 5);
 
-    const recentPaymentsResult = await pool.query(
+    const recentPaymentsResult = await req.db.query(
       `SELECT p.id, p.amount_paid, p.payment_date, c.name as customer_name, c.id as customer_id
        FROM payments p
        JOIN loans l ON l.id = p.loan_id
