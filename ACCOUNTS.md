@@ -34,3 +34,16 @@ Some accounts point to a separate sandbox database instead of real data — used
 
 - No signup page — accounts are only created via `createUser.js`, on purpose.
 - No self-service password recovery — use `resetPassword.js` from the terminal instead.
+
+## checking all the users
+
+```bash
+cd backend
+psql -U postgres -d girvi_app -c "SELECT id, username, db_target FROM users;"
+```
+## seeding sandbox account with pre-seeded data
+
+```bash
+cd backend
+node seedSandbox.js
+```
