@@ -6,7 +6,7 @@ The app uses real login accounts now, not a shared password.
 
 ```bash
 cd backend
-node createUser.js <username> <password>
+node createUser.js < username > < password >
 ```
 
 The account can log in immediately.
@@ -21,7 +21,7 @@ Use this if someone's locked out or you need to reset it directly:
 
 ```bash
 cd backend
-node resetPassword.js <username> <newPassword>
+node resetPassword.js < username > < newPassword >
 ```
 
 No current password needed — this is a direct database update, so only run it on a trusted machine/server.
@@ -47,3 +47,10 @@ psql -U postgres -d girvi_app -c "SELECT id, username, db_target FROM users;"
 cd backend
 node seedSandbox.js
 ```
+
+## assigns the account sandbox database
+
+```bash
+psql -U postgres -d girvi_app -c "UPDATE users SET db_target = 'sandbox' WHERE username = '<username>';"
+```
+Swap <username> for the actual account
