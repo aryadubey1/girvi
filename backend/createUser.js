@@ -3,7 +3,7 @@
 
 require('dotenv').config();
 const bcrypt = require('bcrypt');
-const pool = require('./db');
+const { prodPool } = require('./db');
 
 async function createUser(username, password) {
   if (!username || !password) {
@@ -14,7 +14,7 @@ async function createUser(username, password) {
   const password_hash = await bcrypt.hash(password, 10);
 
   try {
-    const result = await pool.query(
+    const result = await prodPool.query(
       'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
       [username, password_hash]
     );
@@ -26,7 +26,7 @@ async function createUser(username, password) {
       console.error('Failed to create user:', err.message);
     }
   } finally {
-    await pool.end();
+    await prodPool.end();
   }
 }
 
