@@ -1,15 +1,42 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt');
+const pool = require('./db');
+const requireAuth = require('./requireAuth');
 
-router.post('/login', (req, res) => {
-  const { password } = req.body;
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
 
-  if (password === process.env.APP_PASSWORD) {
-    req.session.authenticated = true;
-    return res.json({ success: true });
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  return res.status(401).json({ error: 'Incorrect password' });
+  try {
+    const result = await pool.query(
+      'SELECT id, username, password_hash FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Incorrect username or password' });
+    }
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password_hash);
+
+    if (!match) {
+      return res.status(401).json({ error: 'Incorrect username or password' });
+    }
+
+    req.session.authenticated = true;
+    req.session.userId = user.id;
+    req.session.username = user.username;
+
+    return res.json({ success: true, username: user.username });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Login failed' });
+  }
 });
 
 router.post('/logout', (req, res) => {
@@ -19,7 +46,49 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/check-auth', (req, res) => {
-  res.json({ authenticated: !!(req.session && req.session.authenticated) });
+  const authenticated = !!(req.session && req.session.authenticated);
+  res.json({
+    authenticated,
+    username: authenticated ? req.session.username : null,
+  });
+});
+
+router.post('/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [req.session.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+
+    if (!match) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to change password' });
+  }
 });
 
 module.exports = router;

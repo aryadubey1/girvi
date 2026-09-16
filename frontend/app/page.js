@@ -7,16 +7,20 @@ export default function Home() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [amountsVisible, setAmountsVisible] = useState(false);
   const [search, setSearch] = useState('');
+
+  const [loggedInUsername, setLoggedInUsername] = useState('');
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/check-auth`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setLoggedIn(data.authenticated);
+        setLoggedInUsername(data.username || '');
         setLoading(false);
       });
   }, []);
@@ -42,13 +46,23 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     });
     if (res.ok) {
       setLoggedIn(true);
+      setLoggedInUsername(username);
     } else {
-      setLoginError('Incorrect password');
+      setLoginError('Incorrect username or password');
     }
+  }
+
+  async function handleLogout() {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    setLoggedIn(false);
+    setLoggedInUsername('');
   }
 
   function formatAmount(n) {
@@ -67,6 +81,13 @@ export default function Home() {
       <div className="flex items-center justify-center py-24 px-6">
         <form onSubmit={handleLogin} className="flex flex-col gap-3 w-full max-w-xs">
           <h1 className="text-xl font-bold text-[#292524] mb-2">Log in</h1>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            className="border border-[#E7E5E4] bg-white text-[#292524] px-3 py-2 rounded-lg"
+          />
           <input
             type="password"
             value={password}
@@ -91,6 +112,9 @@ export default function Home() {
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-[#292524]">Dashboard</h2>
+          <span className="text-xs text-[#A8A29E]">
+            {loggedInUsername && `Logged in as ${loggedInUsername}`}
+          </span>
           <button
             onClick={() => setAmountsVisible(v => !v)}
             className="text-[#A8A29E] hover:text-[#A16207] transition-colors"
@@ -121,6 +145,18 @@ export default function Home() {
           >
             + Add customer
           </Link>
+          <Link
+            href="/change-password"
+            className="bg-white text-[#78716C] text-sm px-4 py-2 rounded-lg font-semibold shadow-sm hover:shadow-md transition-shadow"
+          >
+            Change password
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="bg-white text-[#78716C] text-sm px-4 py-2 rounded-lg font-semibold shadow-sm hover:shadow-md transition-shadow"
+          >
+            Log out
+          </button>
         </div>
       </div>
 
