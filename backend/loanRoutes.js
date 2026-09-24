@@ -78,22 +78,92 @@ router.post('/loans', upload.array('photos', 10), async (req, res) => {
 });
 
 router.put('/loans/:id', async (req, res) => {
+  const client = await req.db.connect();
   try {
-    const { notes } = req.body;
+    const {
+      original_principal, interest_rate, loan_date, due_date, notes,
+      gold_weight, gold_rate, gold_purity, gold_value,
+      silver_weight, silver_rate, silver_purity, silver_value
+    } = req.body;
 
-    const result = await req.db.query(
-      `UPDATE loans SET notes = $1 WHERE id = $2 RETURNING *`,
-      [notes || null, req.params.id]
-    );
+    await client.query('BEGIN');
 
-    if (result.rows.length === 0) {
+    const oldLoanResult = await client.query('SELECT * FROM loans WHERE id = $1', [req.params.id]);
+    if (oldLoanResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Loan not found' });
     }
+    const oldLoan = oldLoanResult.rows[0];
 
-    res.json(result.rows[0]);
+    // Compute outstanding principal if original_principal changed? Actually just update original_principal. The ledger handles current logic.
+    // However, outstanding_principal is derived from original_principal minus payments. 
+    // In girvi, outstanding_principal is initially set to original_principal, and updated as payments are made.
+    // It's safer to leave outstanding_principal out of this unless strictly needed, but let's assume original_principal can be edited and outstanding_principal might need manual adjust, but actually we shouldn't touch outstanding_principal here unless payments are re-applied. Since payments are re-applied via ledger, let's just update original_principal for now, wait, no, outstanding_principal is updated on payments. 
+    // Let's just update what is provided.
+    
+    // Prepare updates
+    const updates = {};
+    if (original_principal !== undefined) updates.original_principal = original_principal;
+    if (interest_rate !== undefined) updates.interest_rate = interest_rate;
+    if (loan_date !== undefined) updates.loan_date = loan_date;
+    if (due_date !== undefined) updates.due_date = due_date;
+    if (notes !== undefined) updates.notes = notes;
+    if (gold_weight !== undefined) updates.gold_weight = gold_weight;
+    if (gold_rate !== undefined) updates.gold_rate = gold_rate;
+    if (gold_purity !== undefined) updates.gold_purity = gold_purity;
+    if (gold_value !== undefined) updates.gold_value = gold_value;
+    if (silver_weight !== undefined) updates.silver_weight = silver_weight;
+    if (silver_rate !== undefined) updates.silver_rate = silver_rate;
+    if (silver_purity !== undefined) updates.silver_purity = silver_purity;
+    if (silver_value !== undefined) updates.silver_value = silver_value;
+
+    const setClauses = [];
+    const values = [];
+    let paramIdx = 1;
+
+    for (const [key, value] of Object.entries(updates)) {
+      setClauses.push(`${key} = $${paramIdx}`);
+      values.push(value);
+      paramIdx++;
+    }
+
+    if (setClauses.length === 0) {
+      await client.query('ROLLBACK');
+      return res.json(oldLoan);
+    }
+
+    values.push(req.params.id);
+    const updateQuery = `UPDATE loans SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`;
+    
+    const result = await client.query(updateQuery, values);
+    const newLoan = result.rows[0];
+
+    // Record history
+    for (const key of Object.keys(updates)) {
+      // Postgres dates may come back as Date objects, we compare loosely or as string
+      let oldVal = oldLoan[key];
+      let newVal = newLoan[key];
+
+      if (oldVal instanceof Date) oldVal = oldVal.toISOString().split('T')[0];
+      if (newVal instanceof Date) newVal = newVal.toISOString().split('T')[0];
+      
+      // Handle numeric comparisons properly to avoid false positives (e.g. 10.00 vs 10)
+      if (oldVal != newVal && !(oldVal == null && newVal === '')) {
+        await client.query(
+          `INSERT INTO loan_history (loan_id, field_name, old_value, new_value) VALUES ($1, $2, $3, $4)`,
+          [req.params.id, key, oldVal?.toString() || '', newVal?.toString() || '']
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json(newLoan);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Failed to update loan' });
+  } finally {
+    client.release();
   }
 });
 

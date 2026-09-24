@@ -43,6 +43,12 @@ export default function CustomerDetail() {
   const [newLoanSubmitting, setNewLoanSubmitting] = useState(false);
   const [payingLoanId, setPayingLoanId] = useState(null);
 
+  const [editingLoanId, setEditingLoanId] = useState(null);
+  const [editLoanForm, setEditLoanForm] = useState({});
+  const [editLoanSubmitting, setEditLoanSubmitting] = useState(false);
+  const [editLoanError, setEditLoanError] = useState('');
+  const [expandedHistoryLoanId, setExpandedHistoryLoanId] = useState(null);
+
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [confirmingNewPhotoDeleteIndex, setConfirmingNewPhotoDeleteIndex] = useState(null);
   const [confirmingExistingPhotoDeleteId, setConfirmingExistingPhotoDeleteId] = useState(null);
@@ -50,6 +56,20 @@ export default function CustomerDetail() {
   const [paymentDate, setPaymentDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [paymentError, setPaymentError] = useState('');
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (editingLoanId) {
+      setEditLoanForm(prev => {
+        const goldVal = (prev.gold_weight && prev.gold_rate && prev.gold_purity) ? (parseFloat(prev.gold_weight) * (parseFloat(prev.gold_purity) / 100) * parseFloat(prev.gold_rate)).toFixed(2) : '';
+        const silverVal = (prev.silver_weight && prev.silver_rate && prev.silver_purity) ? (parseFloat(prev.silver_weight) * (parseFloat(prev.silver_purity) / 100) * parseFloat(prev.silver_rate)).toFixed(2) : '';
+        
+        if (prev.gold_value !== goldVal || prev.silver_value !== silverVal) {
+          return { ...prev, gold_value: goldVal, silver_value: silverVal };
+        }
+        return prev;
+      });
+    }
+  }, [editLoanForm.gold_weight, editLoanForm.gold_rate, editLoanForm.gold_purity, editLoanForm.silver_weight, editLoanForm.silver_rate, editLoanForm.silver_purity, editingLoanId]);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, { credentials: 'include' })
@@ -340,6 +360,56 @@ export default function CustomerDetail() {
       setPaymentError(err.message);
     } finally {
       setPaymentSubmitting(false);
+    }
+  }
+
+  function startEditLoan(loan) {
+    setEditingLoanId(loan.id);
+    setEditLoanError('');
+    setEditLoanForm({
+      original_principal: loan.original_principal,
+      interest_rate: loan.interest_rate,
+      loan_date: loan.loan_date ? loan.loan_date.split('T')[0] : '',
+      due_date: loan.due_date ? loan.due_date.split('T')[0] : '',
+      notes: loan.notes || '',
+      gold_weight: loan.gold_weight || '',
+      gold_purity: loan.gold_purity || '',
+      gold_rate: loan.gold_rate || '',
+      gold_value: loan.gold_value || '',
+      silver_weight: loan.silver_weight || '',
+      silver_purity: loan.silver_purity || '',
+      silver_rate: loan.silver_rate || '',
+      silver_value: loan.silver_value || '',
+    });
+  }
+
+  async function handleSaveLoanEdit() {
+    setEditLoanError('');
+    setEditLoanSubmitting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/loans/${editingLoanId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(editLoanForm),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update loan');
+      }
+
+      const refreshed = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers/${id}`, {
+        credentials: 'include',
+      });
+      if (!refreshed.ok) throw new Error('Loan updated, but failed to refresh customer data');
+      const data = await refreshed.json();
+      setCustomer(data);
+
+      setEditingLoanId(null);
+    } catch (err) {
+      setEditLoanError(err.message);
+    } finally {
+      setEditLoanSubmitting(false);
     }
   }
 
@@ -726,9 +796,70 @@ export default function CustomerDetail() {
                 </button>
               </div>
 
-              {isExpanded && (
+              {isExpanded && editingLoanId === loan.id && (
+                <div className="mt-4 pt-4 border-t border-[#E7E5E4] text-sm text-[#44403C] space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-[#78716C] mb-1 block">Principal (₹)</label>
+                      <input type="number" className="w-full border border-[#E7E5E4] bg-white rounded px-2 py-1.5" value={editLoanForm.original_principal} onChange={e => setEditLoanForm({...editLoanForm, original_principal: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-[#78716C] mb-1 block">Interest Rate (%)</label>
+                      <input type="number" step="0.1" className="w-full border border-[#E7E5E4] bg-white rounded px-2 py-1.5" value={editLoanForm.interest_rate} onChange={e => setEditLoanForm({...editLoanForm, interest_rate: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-[#78716C] mb-1 block">Loan Date</label>
+                      <input type="date" className="w-full border border-[#E7E5E4] bg-white rounded px-2 py-1.5" value={editLoanForm.loan_date} onChange={e => setEditLoanForm({...editLoanForm, loan_date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-[#78716C] mb-1 block">Due Date</label>
+                      <input type="date" className="w-full border border-[#E7E5E4] bg-white rounded px-2 py-1.5" value={editLoanForm.due_date} onChange={e => setEditLoanForm({...editLoanForm, due_date: e.target.value})} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-[#78716C] mb-1 block">Notes</label>
+                    <textarea className="w-full border border-[#E7E5E4] bg-white rounded px-2 py-1.5" rows={2} value={editLoanForm.notes} onChange={e => setEditLoanForm({...editLoanForm, notes: e.target.value})} />
+                  </div>
+                  <div className="bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg p-3">
+                    <p className="text-xs font-semibold mb-2">Gold Details</p>
+                    <div className="flex gap-2 text-xs">
+                      <input type="number" placeholder="Weight(g)" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.gold_weight} onChange={e => setEditLoanForm({...editLoanForm, gold_weight: e.target.value})} />
+                      <input type="number" placeholder="Purity(%)" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.gold_purity} onChange={e => setEditLoanForm({...editLoanForm, gold_purity: e.target.value})} />
+                      <input type="number" placeholder="Rate/g" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.gold_rate} onChange={e => setEditLoanForm({...editLoanForm, gold_rate: e.target.value})} />
+                      <input type="text" placeholder="Value" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5 bg-[#F5F5F4] cursor-not-allowed text-[#78716C]" value={editLoanForm.gold_value ? `₹${editLoanForm.gold_value}` : ''} readOnly />
+                    </div>
+                  </div>
+                  <div className="bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg p-3">
+                    <p className="text-xs font-semibold mb-2">Silver Details</p>
+                    <div className="flex gap-2 text-xs">
+                      <input type="number" placeholder="Weight(g)" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.silver_weight} onChange={e => setEditLoanForm({...editLoanForm, silver_weight: e.target.value})} />
+                      <input type="number" placeholder="Purity(%)" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.silver_purity} onChange={e => setEditLoanForm({...editLoanForm, silver_purity: e.target.value})} />
+                      <input type="number" placeholder="Rate/g" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5" value={editLoanForm.silver_rate} onChange={e => setEditLoanForm({...editLoanForm, silver_rate: e.target.value})} />
+                      <input type="text" placeholder="Value" className="flex-1 border border-[#E7E5E4] rounded px-2 py-1.5 bg-[#F5F5F4] cursor-not-allowed text-[#78716C]" value={editLoanForm.silver_value ? `₹${editLoanForm.silver_value}` : ''} readOnly />
+                    </div>
+                  </div>
+                  {editLoanError && <p className="text-red-700 text-xs">{editLoanError}</p>}
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={handleSaveLoanEdit} disabled={editLoanSubmitting} className="bg-[#A16207] text-white text-xs px-4 py-2 rounded disabled:opacity-50">
+                      {editLoanSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button onClick={() => setEditingLoanId(null)} className="border border-[#E7E5E4] text-[#292524] text-xs px-4 py-2 rounded">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isExpanded && editingLoanId !== loan.id && (
                 <div className="mt-4 pt-4 border-t border-[#E7E5E4] text-sm text-[#44403C] space-y-1.5">
-                  <p>Interest rate: {loan.interest_rate}% per month</p>
+                  <div className="flex justify-between items-center mb-1">
+                    <p>Interest rate: {loan.interest_rate}% per month</p>
+                    {!loan.is_deleted && (
+                      <button onClick={() => startEditLoan(loan)} className="text-[#A16207] hover:underline text-xs border border-[#E7E5E4] rounded px-2 py-1">
+                        Edit Details
+                      </button>
+                    )}
+                  </div>
                   {loan.notes && <p>Notes: {loan.notes}</p>}
 
                   <div className="mt-3 p-3 bg-[#FAF9F6] border border-[#E7E5E4] rounded-lg">
@@ -765,8 +896,8 @@ export default function CustomerDetail() {
                         <tr className="bg-[#F0EDE6] text-left text-[#78716C]">
                           <th className="px-3 py-2 font-medium">Date</th>
                           <th className="px-3 py-2 font-medium">Event</th>
+                          <th className="px-3 py-2 font-medium text-right">Payment Amount</th>
                           <th className="px-3 py-2 font-medium text-right">Principal Balance</th>
-                          <th className="px-3 py-2 font-medium text-right">Interest Paid</th>
                           <th className="px-3 py-2 font-medium text-right">Interest Outstanding</th>
                         </tr>
                       </thead>
@@ -782,10 +913,10 @@ export default function CustomerDetail() {
                           >
                             <td className="px-3 py-2 whitespace-nowrap">{row.date}</td>
                             <td className="px-3 py-2">{row.event}</td>
-                            <td className="px-3 py-2 text-right">₹{row.principalBalance.toFixed(2)}</td>
                             <td className="px-3 py-2 text-right">
-                              {row.interestPaid !== null ? `₹${row.interestPaid.toFixed(2)}` : '—'}
+                              {row.paymentTotal !== undefined ? `₹${row.paymentTotal.toFixed(2)}` : '—'}
                             </td>
+                            <td className="px-3 py-2 text-right">₹{row.principalBalance.toFixed(2)}</td>
                             <td className="px-3 py-2 text-right">₹{row.interestOwedAtRow.toFixed(2)}</td>
                           </tr>
                         ))}
@@ -929,6 +1060,39 @@ export default function CustomerDetail() {
                       </div>
                     </div>
                   )}
+
+                  <div className="mt-6 pt-4 border-t border-[#E7E5E4]">
+                    <button 
+                      onClick={() => setExpandedHistoryLoanId(expandedHistoryLoanId === loan.id ? null : loan.id)}
+                      className="font-semibold text-[#292524] flex items-center justify-between w-full hover:bg-[#F5F5F4] p-2 rounded-lg transition-colors"
+                    >
+                      <span>Edit History</span>
+                      <span className="text-[#A16207]">{expandedHistoryLoanId === loan.id ? '▲' : '▼'}</span>
+                    </button>
+                    {expandedHistoryLoanId === loan.id && (
+                      <div className="mt-3 space-y-2 px-2">
+                        {loan.history && loan.history.length > 0 ? (
+                          loan.history.map(h => (
+                            <div key={h.id} className="p-3 bg-white border border-[#E7E5E4] rounded-lg text-xs text-[#57534E] flex flex-col gap-1 shadow-sm">
+                              <p className="text-[#292524]">
+                                Changed <span className="font-semibold">{h.field_name}</span>
+                              </p>
+                              <p>
+                                <span className="line-through text-red-500">{h.old_value || '(none)'}</span>
+                                <span className="mx-2">→</span>
+                                <span className="text-green-600 font-medium">{h.new_value || '(none)'}</span>
+                              </p>
+                              <p className="text-[10px] text-[#A8A29E] mt-1 text-right">
+                                {new Date(h.changed_at).toLocaleString()} {h.changed_by ? `by ${h.changed_by}` : ''}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-[#78716C] py-2">No changes recorded yet.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -128,6 +128,12 @@ router.get('/customers/:id', async (req, res) => {
       );
       const photos = photosResult.rows;
 
+      const historyResult = await req.db.query(
+        `SELECT * FROM loan_history WHERE loan_id = $1 ORDER BY changed_at DESC`,
+        [loan.id]
+      );
+      const history = historyResult.rows;
+
       // buildLoanLedger sorts payments internally
       const ledger = buildLoanLedger(loan, payments);
       const { outstandingPrincipal, interestShortfall, totalOwed } = ledger.finalState;
@@ -143,6 +149,7 @@ router.get('/customers/:id', async (req, res) => {
         ...loanWithComputed,
         payments,
         photos,
+        history,
         ledger,
       });
     }
