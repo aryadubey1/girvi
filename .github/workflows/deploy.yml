@@ -23,7 +23,11 @@ jobs:
             cd backend
             npm install --production
 
+            # Migrate production database
             npx node-pg-migrate up
+
+            # Migrate sandbox database (same migrations, separate DB)
+            DATABASE_URL="postgres://girvidb_user:girvi123@localhost:5432/girvi_db_sandbox" npx node-pg-migrate up
 
             # Explicitly ensure Chromium is installed, in case postinstall
             # scripts are blocked by npm's allow-scripts config on this VPS.
